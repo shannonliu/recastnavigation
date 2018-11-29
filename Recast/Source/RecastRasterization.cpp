@@ -180,15 +180,23 @@ bool rcAddSpan(rcContext* ctx, rcHeightfield& hf, const int x, const int y,
 	return true;
 }
 
+///  @param in			三角形的顶点
+///  @param in			顶点数量3
+///  @param out1		输出数据1
+///  @param nout1		输出数据1的数量
+///  @param out2		输出数据2
+///  @param nout2		输出数据2的数量
+///  @param plane		axis标识对应的面的坐标
+///  @param axis        0、2分别表示对x、z轴进行处理
 // divides a convex polygons into two convex polygons on both sides of a line
 static void dividePoly(const float* in, int nin,
 					  float* out1, int* nout1,
 					  float* out2, int* nout2,
-					  float x, int axis)
+					  float plane, int axis)
 {
-	float d[12];
+	float d[12];//用于保存每个顶点到axis标识的对应平面的距离，最多支持12个顶点
 	for (int i = 0; i < nin; ++i)
-		d[i] = x - in[i*3+axis];
+		d[i] = plane - in[i*3+axis];
 
 	int m = 0, n = 0;
 	for (int i = 0, j = nin-1; i < nin; j=i, ++i)
@@ -237,19 +245,26 @@ static void dividePoly(const float* in, int nin,
 }
 
 
-
+/// 体素化一个三角形
+///  @param[in]	    v0,v1,v2		三角形三个顶点的坐标
+///  @param[in]		areas			该三角形是否可以行走
+///  @param[in]		hf				高度场
+///  @param[in]		bmin,bmax		高度场的AABB包围盒最小最大坐标
+///  @param[in]		cs				高度场在xz平面的格子大小
+///  @param[in]		ics				ics倒数
+///  @param[in]	    ich				高度场在y轴格子大小的倒数
 static bool rasterizeTri(const float* v0, const float* v1, const float* v2,
 						 const unsigned char area, rcHeightfield& hf,
 						 const float* bmin, const float* bmax,
 						 const float cs, const float ics, const float ich,
 						 const int flagMergeThr)
 {
-	const int w = hf.width;
-	const int h = hf.height;
+	const int w = hf.width;//x方向格子数
+	const int h = hf.height;//z方向格子数
 	float tmin[3], tmax[3];
-	const float by = bmax[1] - bmin[1];
+	const float by = bmax[1] - bmin[1];//高度场y轴的高度
 	
-	// Calculate the bounding box of the triangle.
+	// Calculate the bounding box of the triangle.计算三角形的包围盒
 	rcVcopy(tmin, v0);
 	rcVcopy(tmax, v0);
 	rcVmin(tmin, v1);
@@ -262,13 +277,14 @@ static bool rasterizeTri(const float* v0, const float* v1, const float* v2,
 		return true;
 	
 	// Calculate the footprint of the triangle on the grid's y-axis
-	int y0 = (int)((tmin[2] - bmin[2])*ics);
-	int y1 = (int)((tmax[2] - bmin[2])*ics);
-	y0 = rcClamp(y0, 0, h-1);
-	y1 = rcClamp(y1, 0, h-1);
+	// 计算三角形包围盒在Z轴方向上所占据格子的范围
+	int z0 = (int)((tmin[2] - bmin[2])*ics);
+	int z1 = (int)((tmax[2] - bmin[2])*ics);
+	z0 = rcClamp(z0, 0, h-1);
+	z1 = rcClamp(z1, 0, h-1);
 	
 	// Clip the triangle into all grid cells it touches.
-	float buf[7*3*4];
+	float buf[7*3*4];//按21个元素一组分成4份
 	float *in = buf, *inrow = buf+7*3, *p1 = inrow+7*3, *p2 = p1+7*3;
 
 	rcVcopy(&in[0], v0);
@@ -276,10 +292,10 @@ static bool rasterizeTri(const float* v0, const float* v1, const float* v2,
 	rcVcopy(&in[2*3], v2);
 	int nvrow, nvIn = 3;
 	
-	for (int y = y0; y <= y1; ++y)
+	for (int z = z0; z <= z1; ++z)
 	{
 		// Clip polygon to row. Store the remaining polygon as well
-		const float cz = bmin[2] + y*cs;
+		const float cz = bmin[2] + z*cs;//将三角形包围盒最小值从格子索引转回世界坐标系
 		dividePoly(in, nvIn, inrow, &nvrow, p1, &nvIn, cz+cs, 2);
 		rcSwap(in, p1);
 		if (nvrow < 3) continue;
@@ -326,7 +342,7 @@ static bool rasterizeTri(const float* v0, const float* v1, const float* v2,
 			unsigned short ismin = (unsigned short)rcClamp((int)floorf(smin * ich), 0, RC_SPAN_MAX_HEIGHT);
 			unsigned short ismax = (unsigned short)rcClamp((int)ceilf(smax * ich), (int)ismin+1, RC_SPAN_MAX_HEIGHT);
 			
-			if (!addSpan(hf, x, y, ismin, ismax, area, flagMergeThr))
+			if (!addSpan(hf, x, z, ismin, ismax, area, flagMergeThr))
 				return false;
 		}
 	}
@@ -362,6 +378,12 @@ bool rcRasterizeTriangle(rcContext* ctx, const float* v0, const float* v1, const
 ///
 /// Spans will only be added for triangles that overlap the heightfield grid.
 ///
+///  @param[in]		verts			顶点buf起始地址
+///  @param[in]		nv				顶点数量
+///  @param[in]		tris			三角形的索引
+///  @param[in]		areas			每个三角形是否可行走的标志buf
+///  @param[in]		nt				三角形的数量
+///  @param[in,out]	solid			高度场
 /// @see rcHeightfield
 bool rcRasterizeTriangles(rcContext* ctx, const float* verts, const int /*nv*/,
 						  const int* tris, const unsigned char* areas, const int nt,
@@ -380,6 +402,7 @@ bool rcRasterizeTriangles(rcContext* ctx, const float* verts, const int /*nv*/,
 		const float* v1 = &verts[tris[i*3+1]*3];
 		const float* v2 = &verts[tris[i*3+2]*3];
 		// Rasterize.
+		// 对每一个三角形进行体素化处理
 		if (!rasterizeTri(v0, v1, v2, areas[i], solid, solid.bmin, solid.bmax, solid.cs, ics, ich, flagMergeThr))
 		{
 			ctx->log(RC_LOG_ERROR, "rcRasterizeTriangles: Out of memory.");

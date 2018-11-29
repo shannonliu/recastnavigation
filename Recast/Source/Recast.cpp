@@ -294,6 +294,13 @@ void rcCalcGridSize(const float* bmin, const float* bmax, float cs, int* w, int*
 ///
 /// See the #rcConfig documentation for more information on the configuration parameters.
 /// 
+/// @param hf		高度场数据结构
+/// @param width	高度场在x轴方向的格子数目
+/// @param height	高度场在z轴方向的格子数目
+/// @param bmin		高度场的最小坐标点
+/// @param bmax		高度场的最大坐标点
+/// @param cs		高度场在xz平面的格子大小
+/// @param ch		高度场在y轴的格子大小
 /// @see rcAllocHeightfield, rcHeightfield 
 bool rcCreateHeightfield(rcContext* ctx, rcHeightfield& hf, int width, int height,
 						 const float* bmin, const float* bmax,
@@ -307,6 +314,8 @@ bool rcCreateHeightfield(rcContext* ctx, rcHeightfield& hf, int width, int heigh
 	rcVcopy(hf.bmax, bmax);
 	hf.cs = cs;
 	hf.ch = ch;
+	//生成一个与xz平面格子对应的二维数组，每个元素是个rcSpan*指针，用于保存rcSpan类型的链表
+	//一个rcSpan代表了一组y轴连续的格子
 	hf.spans = (rcSpan**)rcAlloc(sizeof(rcSpan*)*hf.width*hf.height, RC_ALLOC_PERM);
 	if (!hf.spans)
 		return false;
@@ -348,6 +357,7 @@ void rcMarkWalkableTriangles(rcContext* ctx, const float walkableSlopeAngle,
 		const int* tri = &tris[i*3];
 		calcTriNormal(&verts[tri[0]*3], &verts[tri[1]*3], &verts[tri[2]*3], norm);
 		// Check if the face is walkable.
+		// norm[1]=归一化的norm在y轴的投影，即与y轴夹角的cos值，值越大说明与y轴夹角越小
 		if (norm[1] > walkableThr)
 			areas[i] = RC_WALKABLE_AREA;
 	}

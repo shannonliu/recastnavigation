@@ -391,8 +391,8 @@ bool Sample_SoloMesh::handleBuild()
 	
 	// Init build configuration from GUI
 	memset(&m_cfg, 0, sizeof(m_cfg));
-	m_cfg.cs = m_cellSize;
-	m_cfg.ch = m_cellHeight;
+	m_cfg.cs = m_cellSize;//x z 方向的格子大小
+	m_cfg.ch = m_cellHeight;// y方向格子大小
 	m_cfg.walkableSlopeAngle = m_agentMaxSlope;
 	m_cfg.walkableHeight = (int)ceilf(m_agentHeight / m_cfg.ch);
 	m_cfg.walkableClimb = (int)floorf(m_agentMaxClimb / m_cfg.ch);
