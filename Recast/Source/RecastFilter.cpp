@@ -24,6 +24,7 @@
 
 /// @par
 ///
+/// 处理像楼梯这样的情况
 /// Allows the formation of walkable regions that will flow over low lying 
 /// objects such as curbs, and up structures such as stairways. 
 /// 
@@ -42,7 +43,8 @@ void rcFilterLowHangingWalkableObstacles(rcContext* ctx, const int walkableClimb
 	const int w = solid.width;
 	const int h = solid.height;
 	
-	for (int y = 0; y < h; ++y)
+	//双循环遍历所有的格子
+	for (int z = 0; z < h; ++z)
 	{
 		for (int x = 0; x < w; ++x)
 		{
@@ -50,14 +52,15 @@ void rcFilterLowHangingWalkableObstacles(rcContext* ctx, const int walkableClimb
 			bool previousWalkable = false;
 			unsigned char previousArea = RC_NULL_AREA;
 			
-			for (rcSpan* s = solid.spans[x + y*w]; s; ps = s, s = s->next)
+			//对特定的格子，处理它关联的span链表，实际上是处理y轴方向上的一列
+			for (rcSpan* s = solid.spans[x + z*w]; s; ps = s, s = s->next)
 			{
 				const bool walkable = s->area != RC_NULL_AREA;
 				// If current span is not walkable, but there is walkable
 				// span just below it, mark the span above it walkable too.
-				if (!walkable && previousWalkable)
+				if (!walkable && previousWalkable)//当前span不可以走，而之前的span可走，则考察高度差
 				{
-					if (rcAbs((int)s->smax - (int)ps->smax) <= walkableClimb)
+					if (rcAbs((int)s->smax - (int)ps->smax) <= walkableClimb)//高度差在walkableClimb范围内，则当前不可走的span也标记为可走
 						s->area = previousArea;
 				}
 				// Copy walkable flag so that it cannot propagate
@@ -91,20 +94,21 @@ void rcFilterLedgeSpans(rcContext* ctx, const int walkableHeight, const int walk
 	const int MAX_HEIGHT = 0xffff;
 	
 	// Mark border spans.
-	for (int y = 0; y < h; ++y)
+	for (int z = 0; z < h; ++z)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			for (rcSpan* s = solid.spans[x + y*w]; s; s = s->next)
+			for (rcSpan* s = solid.spans[x + z*w]; s; s = s->next)
 			{
 				// Skip non walkable spans.
 				if (s->area == RC_NULL_AREA)
 					continue;
 				
 				const int bot = (int)(s->smax);
-				const int top = s->next ? (int)(s->next->smin) : MAX_HEIGHT;
+				const int top = s->next ? (int)(s->next->smin) : MAX_HEIGHT;//当前的最大和上面span的最小，构成了可以行走的空间
 				
 				// Find neighbours minimum height.
+				// 当前span上的空隙与相邻格子列里其他span上的空隙作为数据源，空隙最小上沿和最大下沿的差作为结果。取四个方向上的最小结果
 				int minh = MAX_HEIGHT;
 
 				// Min and max height of accessible neighbours.
@@ -114,29 +118,29 @@ void rcFilterLedgeSpans(rcContext* ctx, const int walkableHeight, const int walk
 				for (int dir = 0; dir < 4; ++dir)
 				{
 					int dx = x + rcGetDirOffsetX(dir);
-					int dy = y + rcGetDirOffsetY(dir);
+					int dz = z + rcGetDirOffsetY(dir);//获取x、z四个方向的相邻格子索引
 					// Skip neighbours which are out of bounds.
-					if (dx < 0 || dy < 0 || dx >= w || dy >= h)
+					if (dx < 0 || dz < 0 || dx >= w || dz >= h)
 					{
 						minh = rcMin(minh, -walkableClimb - bot);
 						continue;
 					}
 
 					// From minus infinity to the first span.
-					rcSpan* ns = solid.spans[dx + dy*w];
-					int nbot = -walkableClimb;
-					int ntop = ns ? (int)ns->smin : MAX_HEIGHT;
+					rcSpan* ns = solid.spans[dx + dz*w];
+					int nbot = -walkableClimb;//正常span的索引不为负数，这里负数表明了minus infinity
+					int ntop = ns ? (int)ns->smin : MAX_HEIGHT;//负无穷到第一个span的下表面
 					// Skip neightbour if the gap between the spans is too small.
-					if (rcMin(top,ntop) - rcMax(bot,nbot) > walkableHeight)
+					if (rcMin(top,ntop) - rcMax(bot,nbot) > walkableHeight)//相邻的两个格子可行走空间对比，比人矮的话，不处理跳过，只处理人高度以上的空隙
 						minh = rcMin(minh, nbot - bot);
 					
 					// Rest of the spans.
-					for (ns = solid.spans[dx + dy*w]; ns; ns = ns->next)
+					for (ns = solid.spans[dx + dz*w]; ns; ns = ns->next)//对格子内所有的span进行遍历
 					{
 						nbot = (int)ns->smax;
 						ntop = ns->next ? (int)ns->next->smin : MAX_HEIGHT;
 						// Skip neightbour if the gap between the spans is too small.
-						if (rcMin(top,ntop) - rcMax(bot,nbot) > walkableHeight)
+						if (rcMin(top,ntop) - rcMax(bot,nbot) > walkableHeight)//相邻的两个格子可行走空间对比，比人矮的话，不处理跳过，只处理人高度以上的空隙
 						{
 							minh = rcMin(minh, nbot - bot);
 						
@@ -153,13 +157,13 @@ void rcFilterLedgeSpans(rcContext* ctx, const int walkableHeight, const int walk
 				
 				// The current span is close to a ledge if the drop to any
 				// neighbour span is less than the walkableClimb.
-				if (minh < -walkableClimb)
+				if (minh < -walkableClimb)//相邻4方向格子列中所有的span，与当前span相比，最小可走空隙高度差超过阈值，则认为是个孤立点
 				{
 					s->area = RC_NULL_AREA;
 				}
 				// If the difference between all neighbours is too large,
 				// we are at steep slope, mark the span as ledge.
-				else if ((asmax - asmin) > walkableClimb)
+				else if ((asmax - asmin) > walkableClimb)//相邻4方向，虽然与当前span相比在阈值内，但累计值超阈值，则认为是陡坡，也标记为不可走
 				{
 					s->area = RC_NULL_AREA;
 				}
@@ -186,15 +190,15 @@ void rcFilterWalkableLowHeightSpans(rcContext* ctx, int walkableHeight, rcHeight
 	
 	// Remove walkable flag from spans which do not have enough
 	// space above them for the agent to stand there.
-	for (int y = 0; y < h; ++y)
+	for (int z = 0; z < h; ++z)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			for (rcSpan* s = solid.spans[x + y*w]; s; s = s->next)
+			for (rcSpan* s = solid.spans[x + z*w]; s; s = s->next)
 			{
 				const int bot = (int)(s->smax);
 				const int top = s->next ? (int)(s->next->smin) : MAX_HEIGHT;
-				if ((top - bot) <= walkableHeight)
+				if ((top - bot) <= walkableHeight)//空隙没人高，则不可行走
 					s->area = RC_NULL_AREA;
 			}
 		}
