@@ -82,14 +82,20 @@ static void freeSpan(rcHeightfield& hf, rcSpan* ptr)
 	hf.freelist = ptr;
 }
 
-static bool addSpan(rcHeightfield& hf, const int x, const int y,
+///  @param hf			高度域
+///  @param x			span所在的格子x轴方向的索引
+///  @param z			span所在的格子z轴方向的索引
+///  @param smin		span在y轴方向格子高度索引的最小值
+///  @param smax		span在y轴方向格子高度索引的最大值
+///  @param area		形成span的原始三角形是否可以行走的标识
+static bool addSpan(rcHeightfield& hf, const int x, const int z,
 					const unsigned short smin, const unsigned short smax,
 					const unsigned char area, const int flagMergeThr)
 {
 	
-	int idx = x + y*hf.width;
+	int idx = x + z*hf.width;
 	
-	rcSpan* s = allocSpan(hf);
+	rcSpan* s = allocSpan(hf);//新建一个span
 	if (!s)
 		return false;
 	s->smin = smin;
@@ -109,12 +115,12 @@ static bool addSpan(rcHeightfield& hf, const int x, const int y,
 	// Insert and merge spans.
 	while (cur)
 	{
-		if (cur->smin > s->smax)
+		if (cur->smin > s->smax)//链表中存放的span，按y轴高度，从下往上连起来，因此新的数据如果在当前span下面则直接跳过合并，插入到当前元素之前
 		{
 			// Current span is further than the new span, break.
 			break;
 		}
-		else if (cur->smax < s->smin)
+		else if (cur->smax < s->smin)//链表中存放的span，按y轴高度，从下往上连起来，因此新的数据如果在当前span上面则跳过当前span考察下一个span
 		{
 			// Current span is before the new span advance.
 			prev = cur;
@@ -181,10 +187,10 @@ bool rcAddSpan(rcContext* ctx, rcHeightfield& hf, const int x, const int y,
 }
 
 ///  @param in			三角形的顶点
-///  @param in			顶点数量3
-///  @param out1		输出数据1
+///  @param nin			顶点数量3
+///  @param out1		输出数据1,面近侧存入out1
 ///  @param nout1		输出数据1的数量
-///  @param out2		输出数据2
+///  @param out2		输出数据2,面远侧存入out2
 ///  @param nout2		输出数据2的数量
 ///  @param plane		axis标识对应的面的坐标
 ///  @param axis        0、2分别表示对x、z轴进行处理
@@ -198,28 +204,29 @@ static void dividePoly(const float* in, int nin,
 	for (int i = 0; i < nin; ++i)
 		d[i] = plane - in[i*3+axis];
 
+	//循环内只考察当前点，面近侧存入out1,面远侧存入out2,面上同时存入out1out2
 	int m = 0, n = 0;
-	for (int i = 0, j = nin-1; i < nin; j=i, ++i)
+	for (int i = 0, j = nin-1; i < nin; j=i, ++i)// i表示当前顶点的索引，j表示上一个顶点的索引
 	{
 		bool ina = d[j] >= 0;
 		bool inb = d[i] >= 0;
-		if (ina != inb)
+		if (ina != inb)//两个顶点不在同一侧，插值计算交点，并将交点同时存到输出out1和out2
 		{
 			float s = d[j] / (d[j] - d[i]);
 			out1[m*3+0] = in[j*3+0] + (in[i*3+0] - in[j*3+0])*s;
 			out1[m*3+1] = in[j*3+1] + (in[i*3+1] - in[j*3+1])*s;
 			out1[m*3+2] = in[j*3+2] + (in[i*3+2] - in[j*3+2])*s;
 			rcVcopy(out2 + n*3, out1 + m*3);
-			m++;
-			n++;
+			m++;//m表示输出out1的数量
+			n++;//n表示输出out2的数量
 			// add the i'th point to the right polygon. Do NOT add points that are on the dividing line
 			// since these were already added above
-			if (d[i] > 0)
+			if (d[i] > 0)//如果在面近侧，则存入out1
 			{
 				rcVcopy(out1 + m*3, in + i*3);
 				m++;
 			}
-			else if (d[i] < 0)
+			else if (d[i] < 0)//如果在面远侧，则存入out2
 			{
 				rcVcopy(out2 + n*3, in + i*3);
 				n++;
@@ -228,14 +235,14 @@ static void dividePoly(const float* in, int nin,
 		else // same side
 		{
 			// add the i'th point to the right polygon. Addition is done even for points on the dividing line
-			if (d[i] >= 0)
+			if (d[i] >= 0)//如果在面近侧，则存入out1
 			{
 				rcVcopy(out1 + m*3, in + i*3);
 				m++;
 				if (d[i] != 0)
 					continue;
 			}
-			rcVcopy(out2 + n*3, in + i*3);
+			rcVcopy(out2 + n*3, in + i*3);//如果就在面上，则同时也存入out2
 			n++;
 		}
 	}
@@ -296,17 +303,22 @@ static bool rasterizeTri(const float* v0, const float* v1, const float* v2,
 	{
 		// Clip polygon to row. Store the remaining polygon as well
 		const float cz = bmin[2] + z*cs;//将三角形包围盒最小值从格子索引转回世界坐标系
+
+		//考虑Z轴方向的一个面cz+cs，对三角形进行切割,面近侧点存入inrow,面远侧点存入p1
 		dividePoly(in, nvIn, inrow, &nvrow, p1, &nvIn, cz+cs, 2);
-		rcSwap(in, p1);
+		rcSwap(in, p1);//最终面近侧点存入inrow,面远侧点存入in
 		if (nvrow < 3) continue;
 		
 		// find the horizontal bounds in the row
+		// 计算z轴某个平面切割后的顶点在x轴方向上的包围盒
 		float minX = inrow[0], maxX = inrow[0];
 		for (int i=1; i<nvrow; ++i)
 		{
 			if (minX > inrow[i*3])	minX = inrow[i*3];
 			if (maxX < inrow[i*3])	maxX = inrow[i*3];
 		}
+
+		// 计算切割后顶点包围盒在x轴方向上所占据格子的范围
 		int x0 = (int)((minX - bmin[0])*ics);
 		int x1 = (int)((maxX - bmin[0])*ics);
 		x0 = rcClamp(x0, 0, w-1);
@@ -318,10 +330,15 @@ static bool rasterizeTri(const float* v0, const float* v1, const float* v2,
 		{
 			// Clip polygon to column. store the remaining polygon as well
 			const float cx = bmin[0] + x*cs;
+			//考虑x轴方向的一个面cx+cs，对z轴平面切割后的面近侧点进行再次切割,面近侧点存入p1,面远侧点存入p2
 			dividePoly(inrow, nv2, p1, &nv, p2, &nv2, cx+cs, 0);
-			rcSwap(inrow, p2);
+			rcSwap(inrow, p2);//最终面近侧点存入p1,面远侧点存入inrow
+
+			//至此，z轴面远侧点存入in，x轴面远侧点存入inrow, 两个面共有的近侧点存入p1
+
 			if (nv < 3) continue;
 			
+			//对x、z轴两个面共有的近侧点p1中的数据进行y轴高度方向的处理，找出y轴的最大最小值，即构成span的原始高度数据
 			// Calculate min and max of the span.
 			float smin = p1[1], smax = p1[1];
 			for (int i = 1; i < nv; ++i)
@@ -339,6 +356,7 @@ static bool rasterizeTri(const float* v0, const float* v1, const float* v2,
 			if (smax > by) smax = by;
 			
 			// Snap the span to the heightfield height grid.
+			// 将span原始高度数据转换成高度的格子索引
 			unsigned short ismin = (unsigned short)rcClamp((int)floorf(smin * ich), 0, RC_SPAN_MAX_HEIGHT);
 			unsigned short ismax = (unsigned short)rcClamp((int)ceilf(smax * ich), (int)ismin+1, RC_SPAN_MAX_HEIGHT);
 			
