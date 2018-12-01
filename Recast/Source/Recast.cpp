@@ -431,7 +431,7 @@ bool rcBuildCompactHeightfield(rcContext* ctx, const int walkableHeight, const i
 	
 	const int w = hf.width;
 	const int h = hf.height;
-	const int spanCount = rcGetHeightFieldSpanCount(ctx, hf);
+	const int spanCount = rcGetHeightFieldSpanCount(ctx, hf);//Get walkable span
 
 	// Fill in header.
 	chf.width = w;
@@ -471,20 +471,22 @@ bool rcBuildCompactHeightfield(rcContext* ctx, const int walkableHeight, const i
 	
 	// Fill in cells and spans.
 	int idx = 0;
-	for (int y = 0; y < h; ++y)
+	for (int z = 0; z < h; ++z)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			const rcSpan* s = hf.spans[x + y*w];
+			const rcSpan* s = hf.spans[x + z*w];
 			// If there are no spans at this cell, just leave the data to index=0, count=0.
 			if (!s) continue;
-			rcCompactCell& c = chf.cells[x+y*w];
-			c.index = idx;
+			rcCompactCell& c = chf.cells[x+z*w];
+			c.index = idx;//index of cell is the first span's index
 			c.count = 0;
 			while (s)
 			{
 				if (s->area != RC_NULL_AREA)
 				{
+                    // compact span = the gaps of two solid span
+                    // 2D solid span -> 1D compact span
 					const int bot = (int)s->smax;
 					const int top = s->next ? (int)s->next->smin : MAX_HEIGHT;
 					chf.spans[idx].y = (unsigned short)rcClamp(bot, 0, 0xffff);
@@ -499,22 +501,22 @@ bool rcBuildCompactHeightfield(rcContext* ctx, const int walkableHeight, const i
 	}
 
 	// Find neighbour connections.
-	const int MAX_LAYERS = RC_NOT_CONNECTED-1;
+	const int MAX_LAYERS = RC_NOT_CONNECTED-1;//0x3f = 11 1111
 	int tooHighNeighbour = 0;
-	for (int y = 0; y < h; ++y)
+	for (int z = 0; z < h; ++z)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			const rcCompactCell& c = chf.cells[x+y*w];
+			const rcCompactCell& c = chf.cells[x+z*w];
 			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
 			{
-				rcCompactSpan& s = chf.spans[i];
+				rcCompactSpan& s = chf.spans[i];//for every compact span in every cell column
 				
 				for (int dir = 0; dir < 4; ++dir)
 				{
-					rcSetCon(s, dir, RC_NOT_CONNECTED);
+					rcSetCon(s, dir, RC_NOT_CONNECTED);//every direction takes 6 bit, (0x3f 111111 RC_NOT_CONNECTED)
 					const int nx = x + rcGetDirOffsetX(dir);
-					const int ny = y + rcGetDirOffsetY(dir);
+					const int ny = z + rcGetDirOffsetY(dir);
 					// First check that the neighbour cell is in bounds.
 					if (nx < 0 || ny < 0 || nx >= w || ny >= h)
 						continue;
@@ -540,7 +542,7 @@ bool rcBuildCompactHeightfield(rcContext* ctx, const int walkableHeight, const i
 								continue;
 							}
 							rcSetCon(s, dir, lidx);
-							break;
+							break;//find a suitable neighbour, use index diff to represents connection infomation
 						}
 					}
 					
