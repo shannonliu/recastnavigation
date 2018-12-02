@@ -46,12 +46,12 @@ static void calculateDistanceField(rcCompactHeightfield& chf, unsigned short* sr
 	for (int i = 0; i < chf.spanCount; ++i)
 		src[i] = 0xffff;
 	
-	// Mark boundary cells.
-	for (int y = 0; y < h; ++y)
+	// Mark boundary cells. src[boundary span] = 0
+    for (int z = 0; z < h; ++z)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			const rcCompactCell& c = chf.cells[x+y*w];
+			const rcCompactCell& c = chf.cells[x+z*w];
 			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
 			{
 				const rcCompactSpan& s = chf.spans[i];
@@ -63,7 +63,7 @@ static void calculateDistanceField(rcCompactHeightfield& chf, unsigned short* sr
 					if (rcGetCon(s, dir) != RC_NOT_CONNECTED)
 					{
 						const int ax = x + rcGetDirOffsetX(dir);
-						const int ay = y + rcGetDirOffsetY(dir);
+						const int ay = z + rcGetDirOffsetY(dir);
 						const int ai = (int)chf.cells[ax+ay*w].index + rcGetCon(s, dir);
 						if (area == chf.areas[ai])
 							nc++;
@@ -77,11 +77,11 @@ static void calculateDistanceField(rcCompactHeightfield& chf, unsigned short* sr
 	
 			
 	// Pass 1
-	for (int y = 0; y < h; ++y)
+	for (int z = 0; z < h; ++z)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			const rcCompactCell& c = chf.cells[x+y*w];
+			const rcCompactCell& c = chf.cells[x+z*w];
 			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
 			{
 				const rcCompactSpan& s = chf.spans[i];
@@ -90,7 +90,7 @@ static void calculateDistanceField(rcCompactHeightfield& chf, unsigned short* sr
 				{
 					// (-1,0)
 					const int ax = x + rcGetDirOffsetX(0);
-					const int ay = y + rcGetDirOffsetY(0);
+					const int ay = z + rcGetDirOffsetY(0);
 					const int ai = (int)chf.cells[ax+ay*w].index + rcGetCon(s, 0);
 					const rcCompactSpan& as = chf.spans[ai];
 					if (src[ai]+2 < src[i])
@@ -110,7 +110,7 @@ static void calculateDistanceField(rcCompactHeightfield& chf, unsigned short* sr
 				{
 					// (0,-1)
 					const int ax = x + rcGetDirOffsetX(3);
-					const int ay = y + rcGetDirOffsetY(3);
+					const int ay = z + rcGetDirOffsetY(3);
 					const int ai = (int)chf.cells[ax+ay*w].index + rcGetCon(s, 3);
 					const rcCompactSpan& as = chf.spans[ai];
 					if (src[ai]+2 < src[i])
@@ -198,11 +198,11 @@ static unsigned short* boxBlur(rcCompactHeightfield& chf, int thr,
 	
 	thr *= 2;
 	
-	for (int y = 0; y < h; ++y)
+	for (int z = 0; z < h; ++z)
 	{
 		for (int x = 0; x < w; ++x)
 		{
-			const rcCompactCell& c = chf.cells[x+y*w];
+			const rcCompactCell& c = chf.cells[x+z*w];
 			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
 			{
 				const rcCompactSpan& s = chf.spans[i];
@@ -219,7 +219,7 @@ static unsigned short* boxBlur(rcCompactHeightfield& chf, int thr,
 					if (rcGetCon(s, dir) != RC_NOT_CONNECTED)
 					{
 						const int ax = x + rcGetDirOffsetX(dir);
-						const int ay = y + rcGetDirOffsetY(dir);
+						const int ay = z + rcGetDirOffsetY(dir);
 						const int ai = (int)chf.cells[ax+ay*w].index + rcGetCon(s, dir);
 						d += (int)src[ai];
 						
@@ -1705,7 +1705,7 @@ bool rcBuildLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 	rcIntArray prev(256);
 	
 	// Sweep one line at a time.
-	for (int y = borderSize; y < h-borderSize; ++y)
+	for (int z = borderSize; z < h-borderSize; ++z)
 	{
 		// Collect spans from this row.
 		prev.resize(id+1);
@@ -1714,7 +1714,7 @@ bool rcBuildLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 		
 		for (int x = borderSize; x < w-borderSize; ++x)
 		{
-			const rcCompactCell& c = chf.cells[x+y*w];
+			const rcCompactCell& c = chf.cells[x+z*w];
 			
 			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
 			{
@@ -1726,7 +1726,7 @@ bool rcBuildLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 				if (rcGetCon(s, 0) != RC_NOT_CONNECTED)
 				{
 					const int ax = x + rcGetDirOffsetX(0);
-					const int ay = y + rcGetDirOffsetY(0);
+					const int ay = z + rcGetDirOffsetY(0);
 					const int ai = (int)chf.cells[ax+ay*w].index + rcGetCon(s, 0);
 					if ((srcReg[ai] & RC_BORDER_REG) == 0 && chf.areas[i] == chf.areas[ai])
 						previd = srcReg[ai];
@@ -1744,7 +1744,7 @@ bool rcBuildLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 				if (rcGetCon(s,3) != RC_NOT_CONNECTED)
 				{
 					const int ax = x + rcGetDirOffsetX(3);
-					const int ay = y + rcGetDirOffsetY(3);
+					const int ay = z + rcGetDirOffsetY(3);
 					const int ai = (int)chf.cells[ax+ay*w].index + rcGetCon(s, 3);
 					if (srcReg[ai] && (srcReg[ai] & RC_BORDER_REG) == 0 && chf.areas[i] == chf.areas[ai])
 					{
@@ -1783,7 +1783,7 @@ bool rcBuildLayerRegions(rcContext* ctx, rcCompactHeightfield& chf,
 		// Remap IDs
 		for (int x = borderSize; x < w-borderSize; ++x)
 		{
-			const rcCompactCell& c = chf.cells[x+y*w];
+			const rcCompactCell& c = chf.cells[x+z*w];
 			
 			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
 			{
