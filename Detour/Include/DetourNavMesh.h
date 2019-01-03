@@ -280,14 +280,14 @@ struct dtMeshTile
 	unsigned int linksFreeList;			///< Index to the next free link.
 	dtMeshHeader* header;				///< The tile header.
 	dtPoly* polys;						///< The tile polygons. [Size: dtMeshHeader::polyCount]
-	float* verts;						///< The tile vertices. [Size: dtMeshHeader::vertCount]
+	float* verts;						///< The tile vertices. [Size: dtMeshHeader::vertCount]仅仅是组成polys的顶点，不包括detailmesh内部的
 	dtLink* links;						///< The tile links. [Size: dtMeshHeader::maxLinkCount]
 	dtPolyDetail* detailMeshes;			///< The tile's detail sub-meshes. [Size: dtMeshHeader::detailMeshCount]
 	
-	/// The detail mesh's unique vertices. [(x, y, z) * dtMeshHeader::detailVertCount]
+	/// The detail mesh's unique vertices. [(x, y, z) * dtMeshHeader::detailVertCount]仅仅是detailmesh内部的顶点，和verts加起来才是所有
 	float* detailVerts;	
 
-	/// The detail mesh's triangles. [(vertA, vertB, vertC) * dtMeshHeader::detailTriCount]
+	/// The detail mesh's triangles. [(vertA, vertB, vertC) * dtMeshHeader::detailTriCount]存的是顶点位置索引
 	unsigned char* detailTris;	
 
 	/// The tile bounding volume nodes. [Size: dtMeshHeader::bvNodeCount]
