@@ -120,7 +120,7 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 	// Partition walkable area into monotone regions.
 	int prevCount[256];
 	unsigned char regId = 0;
-
+	//为srcReg[i]赋值，每个copmact cell都赋值了RegID
 	for (int y = borderSize; y < h-borderSize; ++y)
 	{
 		memset(prevCount,0,sizeof(int)*regId);
@@ -144,7 +144,7 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 					const int ay = y + rcGetDirOffsetY(0);
 					const int ai = (int)chf.cells[ax+ay*w].index + rcGetCon(s, 0);
 					if (chf.areas[ai] != RC_NULL_AREA && srcReg[ai] != 0xff)
-						sid = srcReg[ai];
+						sid = srcReg[ai];//相邻-x方向cell已经有RegID，则用邻居的ID，扩大版图
 				}
 				
 				if (sid == 0xff)
@@ -161,7 +161,7 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 					const int ay = y + rcGetDirOffsetY(3);
 					const int ai = (int)chf.cells[ax+ay*w].index + rcGetCon(s, 3);
 					const unsigned char nr = srcReg[ai];
-					if (nr != 0xff)
+					if (nr != 0xff)//相邻-y方向cell已经有RegID
 					{
 						// Set neighbour when first valid neighbour is encoutered.
 						if (sweeps[sid].ns == 0)
@@ -193,7 +193,7 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 			// the sweep will be merged with the previous one, else new region is created.
 			if (sweeps[i].nei != 0xff && prevCount[sweeps[i].nei] == (int)sweeps[i].ns)
 			{
-				sweeps[i].id = sweeps[i].nei;
+				sweeps[i].id = sweeps[i].nei;//sweeps[].id赋值，联通已经有的区域
 			}
 			else
 			{
@@ -202,7 +202,7 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 					ctx->log(RC_LOG_ERROR, "rcBuildHeightfieldLayers: Region ID overflow.");
 					return false;
 				}
-				sweeps[i].id = regId++;
+				sweeps[i].id = regId++;//一sweeps[].id赋值，个新的RegID诞生
 			}
 		}
 		
@@ -213,7 +213,7 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 			for (int i = (int)c.index, ni = (int)(c.index+c.count); i < ni; ++i)
 			{
 				if (srcReg[i] != 0xff)
-					srcReg[i] = sweeps[srcReg[i]].id;
+					srcReg[i] = sweeps[srcReg[i]].id;//srcReg[i] 由 sweeps[].id 而来
 			}
 		}
 	}
@@ -279,6 +279,7 @@ bool rcBuildHeightfieldLayers(rcContext* ctx, rcCompactHeightfield& chf,
 			}
 			
 			// Update overlapping regions.
+			// 在垂直方向，不同的region为不同的layer
 			for (int i = 0; i < nlregs-1; ++i)
 			{
 				for (int j = i+1; j < nlregs; ++j)
