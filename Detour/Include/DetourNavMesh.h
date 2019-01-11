@@ -94,6 +94,9 @@ static const unsigned int DT_OFFMESH_CON_BIDIR = 1;
 /// @ingroup detour
 static const int DT_MAX_AREAS = 64;
 
+static const int DT_grid_count_plusone = 2 + 1;
+static const float DT_grid_UnitSize = 0.5f;
+
 /// Tile flags used for various functions and fields.
 /// For an example, see dtNavMesh::addTile().
 enum dtTileFlags
@@ -239,6 +242,29 @@ struct dtOffMeshConnection
 	unsigned int userId;
 };
 
+struct dtGrid 
+{
+public:
+	int vertsCount;
+	int polyCount;
+	float verts[DT_grid_count_plusone * DT_grid_count_plusone * 3];
+
+	dtGrid(float baseX, float baseY, float baseZ):vertsCount(DT_grid_count_plusone * DT_grid_count_plusone), 
+		polyCount((DT_grid_count_plusone -1 ) * (DT_grid_count_plusone - 1))
+	{
+		for (int i = 0; i < DT_grid_count_plusone; i++)
+		{
+			for (int j = 0; j < DT_grid_count_plusone; j++)
+			{
+				int _index = (i * DT_grid_count_plusone + j) * 3;
+				verts[_index] = DT_grid_UnitSize * i + baseX;
+				verts[_index + 2] = DT_grid_UnitSize * j + baseY;
+				verts[_index + 1] = baseZ;
+			}
+		}
+	}
+};
+
 /// Provides high level information related to a dtMeshTile object.
 /// @ingroup detour
 struct dtMeshHeader
@@ -360,6 +386,9 @@ public:
 	///  @param[out]	dataSize	Size of the data associated with deleted tile.
 	/// @return The status flags for the operation.
 	dtStatus removeTile(dtTileRef ref, unsigned char** data, int* dataSize);
+
+
+	dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo);
 
 	/// @}
 

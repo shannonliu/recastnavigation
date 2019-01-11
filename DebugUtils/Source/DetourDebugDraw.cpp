@@ -45,13 +45,18 @@ static void drawPolyBoundaries(duDebugDraw* dd, const dtMeshTile* tile,
 
 	dd->begin(DU_DRAW_LINES, linew);
 
-	for (int i = 0; i < tile->header->polyCount; ++i)
+	for (int i = 0; i < tile->header->detailMeshCount; ++i)
 	{
 		const dtPoly* p = &tile->polys[i];
 		
 		if (p->getType() == DT_POLYTYPE_OFFMESH_CONNECTION) continue;
 		
 		const dtPolyDetail* pd = &tile->detailMeshes[i];
+
+		if (nullptr == pd)
+		{
+			continue;
+		}
 		
 		for (int j = 0, nj = (int)p->vertCount; j < nj; ++j)
 		{
@@ -122,6 +127,11 @@ static void drawMeshTile(duDebugDraw* dd, const dtNavMesh& mesh, const dtNavMesh
 
 	int tileNum = mesh.decodePolyIdTile(base);
 	const unsigned int tileColor = duIntToCol(tileNum, 128);
+
+	if (!(4 == tile->header->x && 6 == tile->header->y))
+	{
+		return;
+	}
 	
 	dd->depthMask(false);
 
@@ -132,7 +142,7 @@ static void drawMeshTile(duDebugDraw* dd, const dtNavMesh& mesh, const dtNavMesh
 		if (p->getType() == DT_POLYTYPE_OFFMESH_CONNECTION)	// Skip off-mesh links.
 			continue;
 			
-		const dtPolyDetail* pd = &tile->detailMeshes[i];//detailMeshes和polys的数量一致!?
+		
 
 		unsigned int col;
 		if (query && query->isInClosedList(base | (dtPolyRef)i))
@@ -144,18 +154,25 @@ static void drawMeshTile(duDebugDraw* dd, const dtNavMesh& mesh, const dtNavMesh
 			else
 				col = duTransCol(dd->areaToCol(p->getArea()), 64);
 		}
-		
-		for (int j = 0; j < pd->triCount; ++j)//遍历detailmesh中所有的三角形
+
+		if (i < tile->header->detailMeshCount)
 		{
-			const unsigned char* t = &tile->detailTris[(pd->triBase+j)*4];//获取每个三角形的顶点在Poly内的索引
-			for (int k = 0; k < 3; ++k)
+			const dtPolyDetail* pd = &tile->detailMeshes[i];//detailMeshes和polys的数量一致!?
+
+			for (int j = 0; j < pd->triCount; ++j)//遍历detailmesh中所有的三角形
 			{
-				if (t[k] < p->vertCount)//索引小于vertcount的说明是ploy上的顶点
-					dd->vertex(&tile->verts[p->verts[t[k]]*3], col);//将每个三角形的顶点在Poly内的索引转化为在tile内的索引
-				else//索引大于vertcount的说明是ploy内detailMesh的顶点
-					dd->vertex(&tile->detailVerts[(pd->vertBase+t[k]-p->vertCount)*3], col);
+				const unsigned char* t = &tile->detailTris[(pd->triBase + j) * 4];//获取每个三角形的顶点在Poly内的索引
+				for (int k = 0; k < 3; ++k)
+				{
+					if (t[k] < p->vertCount)//索引小于vertcount的说明是ploy上的顶点
+						dd->vertex(&tile->verts[p->verts[t[k]] * 3], col);//将每个三角形的顶点在Poly内的索引转化为在tile内的索引
+					else//索引大于vertcount的说明是ploy内detailMesh的顶点
+						dd->vertex(&tile->detailVerts[(pd->vertBase + t[k] - p->vertCount) * 3], col);
+				}
 			}
 		}
+
+		
 	}
 	dd->end();
 	

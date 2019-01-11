@@ -124,7 +124,8 @@ public:
 			if (shift)
 				m_sample->removeTile(m_hitPos);
 			else
-				m_sample->buildTile(m_hitPos);
+				//m_sample->buildTile(m_hitPos);
+				m_sample->CreateTile(m_hitPos);
 		}
 	}
 
@@ -720,6 +721,23 @@ void Sample_TileMesh::removeTile(const float* pos)
 	m_tileCol = duRGBA(128,32,16,64);
 	
 	m_navMesh->removeTile(m_navMesh->getTileRefAt(tx,ty,0),0,0);
+}
+
+void Sample_TileMesh::CreateTile(const float* pos)
+{
+	if (!m_geom) return;
+	if (!m_navMesh) return;
+
+	const float* bmin = m_geom->getNavMeshBoundsMin();
+	const float* bmax = m_geom->getNavMeshBoundsMax();
+
+	const float ts = m_tileSize*m_cellSize;
+	const int tx = (int)((pos[0] - bmin[0]) / ts);
+	const int ty = (int)((pos[2] - bmin[2]) / ts);
+
+	dtGrid _grid(pos[0], pos[2], pos[1] + 5);
+
+	m_navMesh->ReAddTitle(m_navMesh->getTileRefAt(tx, ty, 0), _grid);
 }
 
 void Sample_TileMesh::buildAllTiles()
