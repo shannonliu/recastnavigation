@@ -1639,7 +1639,27 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
 
 			for (int j = 0; j < 4; ++j)
 			{
-				//p->neis[j] = DT_EXT_LINK | 4 | 2|6;
+				p->neis[j] = DT_EXT_LINK | 0 | 2 | 4 | 6;
+
+				if (0 == i % ( DT_grid_count_plusone - 1) && 3 == j)
+				{
+					p->neis[j] = 0;
+				}
+
+				if (DT_grid_count_plusone - 2 == i % (DT_grid_count_plusone - 1) && 1 == j)
+				{
+					p->neis[j] = 0;
+				}
+
+				if (i < DT_grid_count_plusone - 1  && 0 == j)
+				{
+					p->neis[j] = 0;
+				}
+
+				if (i >= (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 2) && 2 == j)
+				{
+					p->neis[j] = 0;
+				}
 			}
 		}
 
