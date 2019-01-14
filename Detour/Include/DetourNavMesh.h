@@ -94,7 +94,7 @@ static const unsigned int DT_OFFMESH_CON_BIDIR = 1;
 /// @ingroup detour
 static const int DT_MAX_AREAS = 64;
 
-static const int DT_grid_count_plusone = 2 + 1;
+static const int DT_grid_count_plusone = 42 + 1;
 static const float DT_grid_UnitSize = 0.5f;
 
 /// Tile flags used for various functions and fields.

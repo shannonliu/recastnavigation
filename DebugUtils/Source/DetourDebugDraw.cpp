@@ -165,9 +165,16 @@ static void drawMeshTile(duDebugDraw* dd, const dtNavMesh& mesh, const dtNavMesh
 				for (int k = 0; k < 3; ++k)
 				{
 					if (t[k] < p->vertCount)//索引小于vertcount的说明是ploy上的顶点
-						dd->vertex(&tile->verts[p->verts[t[k]] * 3], col);//将每个三角形的顶点在Poly内的索引转化为在tile内的索引
+					{
+						int _indexOfVerts = p->verts[t[k]];
+						float* _dataOfVerts = &tile->verts[_indexOfVerts * 3];
+						dd->vertex(_dataOfVerts, col);//将每个三角形的顶点在Poly内的索引转化为在tile内的索引
+					}
 					else//索引大于vertcount的说明是ploy内detailMesh的顶点
+					{
 						dd->vertex(&tile->detailVerts[(pd->vertBase + t[k] - p->vertCount) * 3], col);
+					}
+						
 				}
 			}
 		}
@@ -177,7 +184,7 @@ static void drawMeshTile(duDebugDraw* dd, const dtNavMesh& mesh, const dtNavMesh
 	dd->end();
 	
 	// Draw inter poly boundaries
-	drawPolyBoundaries(dd, tile, duRGBA(0,48,64,32), 1.5f, true);
+	//drawPolyBoundaries(dd, tile, duRGBA(0,48,64,32), 1.5f, true);
 	
 	// Draw outer poly boundaries
 	drawPolyBoundaries(dd, tile, duRGBA(0,48,64,220), 2.5f, false);
