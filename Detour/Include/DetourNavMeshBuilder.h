@@ -21,6 +21,7 @@
 
 #include "DetourAlloc.h"
 
+
 /// Represents the source data used to build an navigation mesh tile.
 /// @ingroup detour
 struct dtNavMeshCreateParams
@@ -121,6 +122,8 @@ bool dtNavMeshHeaderSwapEndian(unsigned char* data, const int dataSize);
 ///  @param[in,out]	data		The tile data array.
 ///  @param[in]		dataSize	The size of the data array.
 bool dtNavMeshDataSwapEndian(unsigned char* data, const int dataSize);
+
+int CreateGridBVTree(float headerbmin[], float quantFactor, float* gridnavVerts, void* gridnavPolys, int polyCount, void* nodes, int gridpolyindex);
 
 #endif // DETOURNAVMESHBUILDER_H
 

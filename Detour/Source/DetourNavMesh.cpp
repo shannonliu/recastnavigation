@@ -25,6 +25,7 @@
 #include "DetourMath.h"
 #include "DetourAlloc.h"
 #include "DetourAssert.h"
+#include "DetourNavMeshBuilder.h"
 #include <new>
 
 
@@ -1566,6 +1567,7 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
 		const int _srcdetailVertsSize = dtAlign4(sizeof(float) * 3 * header->detailVertCount);
 		const int _srcdetailTrisSize = dtAlign4(sizeof(unsigned char) * 4 * header->detailTriCount);
 		const int _srcbvTreeSize = header->bvNodeCount > 0 ? dtAlign4(sizeof(dtBVNode)*header->polyCount * 2) : 0;
+		const int _srcoffMeshConsSize = dtAlign4(sizeof(dtOffMeshConnection) * header->offMeshConCount);
 
 		int _griddataSize = dataSize + _gridvertsSize + _gridpolysSize + _griddetailMeshesSize + _griddetailVertsSize + _griddetailTrisSize + _gridbvTreeSize;
 
@@ -1587,6 +1589,7 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
 		float* _gridnavDVerts = dtGetThenAdvanceBufferPointer<float>(dGrid, _griddetailVertsSize + _srcdetailVertsSize);
 		unsigned char* _gridnavDTris = dtGetThenAdvanceBufferPointer<unsigned char>(dGrid, _griddetailTrisSize + _srcdetailTrisSize);
 		dtBVNode* _gridnavBvtree = dtGetThenAdvanceBufferPointer<dtBVNode>(dGrid, _gridbvTreeSize + _srcbvTreeSize);
+		dtOffMeshConnection* _gridoffMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(dGrid, _srcoffMeshConsSize);
 
 		unsigned char* dSrc = data;
 		dtMeshHeader* _srcheader = dtGetThenAdvanceBufferPointer<dtMeshHeader>(dSrc, headerSize);
@@ -1598,6 +1601,7 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
 		float* _srcnavDVerts = dtGetThenAdvanceBufferPointer<float>(dSrc, _srcdetailVertsSize);
 		unsigned char* _srcnavDTris = dtGetThenAdvanceBufferPointer<unsigned char>(dSrc, _srcdetailTrisSize);
 		dtBVNode* _srcnavBvtree = dtGetThenAdvanceBufferPointer<dtBVNode>(dSrc, _srcbvTreeSize);
+		dtOffMeshConnection* _srcoffMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(dSrc, _srcoffMeshConsSize);
 
 		// header
 		memcpy(_griddata, data, headerSize);
@@ -1699,15 +1703,21 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
 
 		//bvtree 
 		memcpy(_gridnavBvtree, _srcnavBvtree, _srcbvTreeSize);
+		CreateGridBVTree(_gridheader->bmin, _gridheader->bvQuantFactor, _gridnavVerts, (void*)&_gridnavPolys[header->polyCount], gridInfo.polyCount, (void*)&_gridnavBvtree[header->polyCount], header->polyCount);
 
+		//offmesh
+		memcpy(_gridoffMeshCons, _srcoffMeshCons, _srcoffMeshConsSize);
+
+		
 		_gridheader->vertCount += gridInfo.vertsCount;
 		_gridheader->polyCount += gridInfo.polyCount;
 		_gridheader->detailMeshCount += gridInfo.polyCount;
 		_gridheader->detailTriCount += (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 1) * 2;
 		_gridheader->bvNodeCount += header->bvNodeCount > 0 ? _gridheader->polyCount * 2 : 0;
-		//header->offMeshBase = header->polyCount;
+		_gridheader->offMeshBase = header->polyCount - header->offMeshConCount;
+		_gridheader->offMeshConCount = header->offMeshConCount;
 
-		memcpy(dGrid, dSrc, dataSize - headerSize - _srcvertsSize - _srcpolysSize - _srclinksSize - _srcdetailMeshesSize - _srcdetailVertsSize - _srcdetailTrisSize - _srcbvTreeSize);
+		memcpy(dGrid, dSrc, dataSize - headerSize - _srcvertsSize - _srcpolysSize - _srclinksSize - _srcdetailMeshesSize - _srcdetailVertsSize - _srcdetailTrisSize - _srcbvTreeSize - _srcoffMeshConsSize);
 
 		removeTile(ref, &data, &dataSize);
 		addTile(_griddata, _griddataSize, 0, 0, 0);

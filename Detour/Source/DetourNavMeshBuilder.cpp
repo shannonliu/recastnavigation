@@ -167,6 +167,48 @@ static void subdivide(BVItem* items, int nitems, int imin, int imax, int& curNod
 		node.i = -iescape;
 	}
 }
+int CreateGridBVTree(float headerbmin[], float quantFactor, float* gridnavVerts,  void* gridnavPolys, int polyCount, void* nodes, int gridpolyindex)
+{
+	BVItem* items = (BVItem*)dtAlloc(sizeof(BVItem)*polyCount, DT_ALLOC_TEMP);
+	for (int i = 0; i < polyCount; i++)
+	{
+		dtPoly* p = &((dtPoly*)gridnavPolys)[i];
+
+		BVItem& it = items[i];
+		it.i = i + gridpolyindex;
+		// Calc polygon bounds. 
+
+		float bmin[3];
+		float bmax[3];
+
+		const float* dv = &gridnavVerts[p->verts[0] * 3];
+		dtVcopy(bmin, dv);
+		dtVcopy(bmax, dv);
+
+		for (int j = 1; j < 4; j++)
+		{
+			float* v = &gridnavVerts[p->verts[j] * 3];
+			dtVmin(bmin, v);
+			dtVmax(bmax, v);
+		}
+
+		// BV-tree uses cs for all dimensions
+		it.bmin[0] = (unsigned short)dtClamp((int)((bmin[0] - headerbmin[0])*quantFactor), 0, 0xffff);
+		it.bmin[1] = (unsigned short)dtClamp((int)((bmin[1] - headerbmin[1])*quantFactor), 0, 0xffff);
+		it.bmin[2] = (unsigned short)dtClamp((int)((bmin[2] - headerbmin[2])*quantFactor), 0, 0xffff);
+
+		it.bmax[0] = (unsigned short)dtClamp((int)((bmax[0] - headerbmin[0])*quantFactor), 0, 0xffff);
+		it.bmax[1] = (unsigned short)dtClamp((int)((bmax[1] - headerbmin[1])*quantFactor), 0, 0xffff);
+		it.bmax[2] = (unsigned short)dtClamp((int)((bmax[2] - headerbmin[2])*quantFactor), 0, 0xffff);
+	}
+
+	int curNode = 0;
+	subdivide(items, polyCount, 0, polyCount, curNode, (dtBVNode*)nodes);
+
+	dtFree(items);
+
+	return curNode;
+}
 
 static int createBVTree(dtNavMeshCreateParams* params, dtBVNode* nodes, int /*nnodes*/)
 {
