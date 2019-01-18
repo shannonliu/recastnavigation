@@ -123,7 +123,7 @@ bool dtNavMeshHeaderSwapEndian(unsigned char* data, const int dataSize);
 ///  @param[in]		dataSize	The size of the data array.
 bool dtNavMeshDataSwapEndian(unsigned char* data, const int dataSize);
 
-int CreateGridBVTree(float headerbmin[], float quantFactor, float* gridnavVerts, void* gridnavPolys, int polyCount, void* nodes, int gridpolyindex);
+int CreateGridBVTree(float headerbmin[], float quantFactor, float* gridnavVerts, void* gridnavPolys, int polyCount, void* nodes, int gridpolyindex, int bvNodeCount);
 
 #endif // DETOURNAVMESHBUILDER_H
 

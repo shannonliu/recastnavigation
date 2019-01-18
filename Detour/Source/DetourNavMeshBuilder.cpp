@@ -167,7 +167,7 @@ static void subdivide(BVItem* items, int nitems, int imin, int imax, int& curNod
 		node.i = -iescape;
 	}
 }
-int CreateGridBVTree(float headerbmin[], float quantFactor, float* gridnavVerts,  void* gridnavPolys, int polyCount, void* nodes, int gridpolyindex)
+int CreateGridBVTree(float headerbmin[], float quantFactor, float* gridnavVerts,  void* gridnavPolys, int polyCount, void* nodes, int gridpolyindex, int bvNodeCount)
 {
 	BVItem* items = (BVItem*)dtAlloc(sizeof(BVItem)*polyCount, DT_ALLOC_TEMP);
 	for (int i = 0; i < polyCount; i++)
