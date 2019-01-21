@@ -1521,7 +1521,7 @@ dtStatus dtNavMesh::getPolyArea(dtPolyRef ref, unsigned char* resultArea) const
 	return DT_SUCCESS;
 }
 
-dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
+dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& gridOffmesh)
 {
 	dtStatus flag = DT_SUCCESS;
 	do 
@@ -1577,6 +1577,15 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
 			flag = DT_FAILURE;
 			break;
 		}
+
+
+
+
+
+
+
+
+
 		memset(_griddata, 0, _griddataSize);
 
 		unsigned char* dGrid = _griddata;
@@ -1603,6 +1612,103 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
 
 		// header
 		memcpy(_griddata, data, headerSize);
+
+		int storedOffMeshConCount = 0;
+		int offMeshConLinkCount = 0;
+		// begin to cook off mesh data
+		{
+			unsigned char* offMeshConClass = 0;
+			
+
+			if (gridOffmesh.offMeshConCount > 0)
+			{
+				offMeshConClass = (unsigned char*)dtAlloc(sizeof(unsigned char)*gridOffmesh.offMeshConCount * 2, DT_ALLOC_TEMP);
+				if (nullptr == offMeshConClass)
+				{
+					flag = DT_FAILURE;
+					break;
+				}
+
+				// Find tight heigh bounds, used for culling out off-mesh start locations.
+				float hmin = FLT_MAX;
+				float hmax = -FLT_MAX;
+
+				for (int i = 0; i < header->vertCount; ++i)
+				{
+					const float h = _oldTile->verts[i * 3 + 1];
+					hmin = dtMin(hmin, h);
+					hmax = dtMax(hmax, h);
+				}
+
+				hmin = dtMin(hmin, gridInfo.baseZ);
+				hmax = dtMax(hmax, gridInfo.baseZ);
+
+				hmin -= header->walkableClimb;
+				hmax += header->walkableClimb;
+				float bmin[3], bmax[3];
+				dtVcopy(bmin, header->bmin);
+				dtVcopy(bmax, header->bmax);
+				bmin[1] = hmin;
+				bmax[1] = hmax;
+
+				for (int i = 0; i < gridOffmesh.offMeshConCount; ++i)
+				{
+					const float* p0 = &gridOffmesh.offMeshConVerts[(i * 2 + 0) * 3];
+					const float* p1 = &gridOffmesh.offMeshConVerts[(i * 2 + 1) * 3];
+					offMeshConClass[i * 2 + 0] = classifyOffMeshPoint(p0, bmin, bmax);
+					offMeshConClass[i * 2 + 1] = classifyOffMeshPoint(p1, bmin, bmax);
+
+					// Zero out off-mesh start positions which are not even potentially touching the mesh.
+					if (offMeshConClass[i * 2 + 0] == 0xff)
+					{
+						if (p0[1] < bmin[1] || p0[1] > bmax[1])
+							offMeshConClass[i * 2 + 0] = 0;
+					}
+
+					// Cound how many links should be allocated for off-mesh connections.
+					if (offMeshConClass[i * 2 + 0] == 0xff)
+						offMeshConLinkCount++;
+					if (offMeshConClass[i * 2 + 1] == 0xff)
+						offMeshConLinkCount++;
+
+					if (offMeshConClass[i * 2 + 0] == 0xff)
+						storedOffMeshConCount++;
+				}
+			}
+
+			// Off-mesh link vertices.
+			int n = 0;
+			for (int i = 0; i < gridOffmesh.offMeshConCount; ++i)
+			{
+				// Only store connections which start from this tile.
+				if (offMeshConClass[i * 2 + 0] == 0xff)
+				{
+					const float* linkv = &gridOffmesh.offMeshConVerts[i * 2 * 3];
+					float* v = &_gridnavVerts[(header->vertCount + n * 2) * 3];
+					dtVcopy(&v[0], &linkv[0]);
+					dtVcopy(&v[3], &linkv[3]);
+					n++;
+				}
+			}
+
+			// Off-mesh connection vertices.
+			n = 0;
+			for (int i = 0; i < gridOffmesh.offMeshConCount; ++i)
+			{
+				// Only store connections which start from this tile.
+				if (offMeshConClass[i * 2 + 0] == 0xff)
+				{
+					dtPoly* p = &_gridnavPolys[header->offMeshBase + n];
+					p->vertCount = 2;
+					p->verts[0] = (unsigned short)(header->vertCount + n * 2 + 0);
+					p->verts[1] = (unsigned short)(header->vertCount + n * 2 + 1);
+					p->flags = gridOffmesh.offMeshConFlags[i];
+					p->setArea(gridOffmesh.offMeshConAreas[i]);
+					p->setType(DT_POLYTYPE_OFFMESH_CONNECTION);
+					n++;
+				}
+			}
+		}
 		
 		// verts
 		memcpy(_gridnavVerts, _srcnavVerts, _srcvertsSize);
@@ -1714,7 +1820,7 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo)
 		_gridheader->detailTriCount += (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 1) * 2;
 		_gridheader->bvNodeCount += header->bvNodeCount > 0 ? gridInfo.polyCount * 2 : 0;
 		_gridheader->offMeshBase = header->offMeshBase;
-		_gridheader->offMeshConCount = header->offMeshConCount;
+		_gridheader->offMeshConCount = header->offMeshConCount + storedOffMeshConCount;
 
 		int _toCopyCount = dataSize - headerSize - _srcvertsSize - _srcpolysSize - _srclinksSize - _srcdetailMeshesSize - _srcdetailVertsSize - _srcdetailTrisSize - _srcbvTreeSize - _srcoffMeshConsSize;
 

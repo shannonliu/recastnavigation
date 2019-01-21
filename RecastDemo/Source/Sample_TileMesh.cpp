@@ -735,9 +735,18 @@ void Sample_TileMesh::CreateTile(const float* pos)
 	const int tx = (int)((pos[0] - bmin[0]) / ts);
 	const int ty = (int)((pos[2] - bmin[2]) / ts);
 
-	dtGrid _grid(pos[0], pos[2], pos[1] + 5);
+	dtGrid _grid(pos[0], pos[2], pos[1] + 1);
 
-	m_navMesh->ReAddTitle(m_navMesh->getTileRefAt(tx, ty, 0), _grid);
+	dtGridOffmesh _gridOffmesh;
+	_gridOffmesh.offMeshConVerts = m_geom->getOffMeshConnectionVerts();
+	_gridOffmesh.offMeshConRad = m_geom->getOffMeshConnectionRads();
+	_gridOffmesh.offMeshConDir = m_geom->getOffMeshConnectionDirs();
+	_gridOffmesh.offMeshConAreas = m_geom->getOffMeshConnectionAreas();
+	_gridOffmesh.offMeshConFlags = m_geom->getOffMeshConnectionFlags();
+	_gridOffmesh.offMeshConUserID = m_geom->getOffMeshConnectionId();
+	_gridOffmesh.offMeshConCount = m_geom->getOffMeshConnectionCount();
+
+	m_navMesh->ReAddTitle(m_navMesh->getTileRefAt(tx, ty, 0), _grid, _gridOffmesh);
 }
 
 void Sample_TileMesh::buildAllTiles()

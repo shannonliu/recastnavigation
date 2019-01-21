@@ -125,6 +125,8 @@ bool dtNavMeshDataSwapEndian(unsigned char* data, const int dataSize);
 
 int CreateGridBVTree(float headerbmin[], float quantFactor, float* gridnavVerts, void* gridnavPolys, int polyCount, void* nodes, int gridpolyindex, int bvNodeCount);
 
+unsigned char classifyOffMeshPoint(const float* pt, const float* bmin, const float* bmax);
+
 #endif // DETOURNAVMESHBUILDER_H
 
 // This section contains detailed documentation for members that don't have

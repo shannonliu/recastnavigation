@@ -282,7 +282,7 @@ static int createBVTree(dtNavMeshCreateParams* params, dtBVNode* nodes, int /*nn
 	return curNode;
 }
 
-static unsigned char classifyOffMeshPoint(const float* pt, const float* bmin, const float* bmax)
+unsigned char classifyOffMeshPoint(const float* pt, const float* bmin, const float* bmax)
 {
 	static const unsigned char XP = 1<<0;
 	static const unsigned char ZP = 1<<1;
@@ -518,6 +518,7 @@ bool dtCreateNavMeshData(dtNavMeshCreateParams* params, unsigned char** outData,
 	header->detailTriCount = detailTriCount;
 	header->bvQuantFactor = 1.0f / params->cs;
 	header->offMeshBase = params->polyCount;
+	//header->offMeshVertsBase = params->vertCount;
 	header->walkableHeight = params->walkableHeight;
 	header->walkableRadius = params->walkableRadius;
 	header->walkableClimb = params->walkableClimb;

@@ -242,12 +242,41 @@ struct dtOffMeshConnection
 	unsigned int userId;
 };
 
+struct dtGridOffmesh
+{
+	/// @}
+	/// @name Off-Mesh Connections Attributes (Optional)
+	/// Used to define a custom point-to-point edge within the navigation graph, an 
+	/// off-mesh connection is a user defined traversable connection made up to two vertices, 
+	/// at least one of which resides within a navigation mesh polygon.
+	/// @{
+public:
+	/// Off-mesh connection vertices. [(ax, ay, az, bx, by, bz) * #offMeshConCount] [Unit: wu]
+	const float* offMeshConVerts;
+	/// Off-mesh connection radii. [Size: #offMeshConCount] [Unit: wu]
+	const float* offMeshConRad;
+	/// User defined flags assigned to the off-mesh connections. [Size: #offMeshConCount]
+	const unsigned short* offMeshConFlags;
+	/// User defined area ids assigned to the off-mesh connections. [Size: #offMeshConCount]
+	const unsigned char* offMeshConAreas;
+	/// The permitted travel direction of the off-mesh connections. [Size: #offMeshConCount]
+	///
+	/// 0 = Travel only from endpoint A to endpoint B.<br/>
+	/// #DT_OFFMESH_CON_BIDIR = Bidirectional travel.
+	const unsigned char* offMeshConDir;
+	/// The user defined ids of the off-mesh connection. [Size: #offMeshConCount]
+	const unsigned int* offMeshConUserID;
+	/// The number of off-mesh connections. [Limit: >= 0]
+	int offMeshConCount;
+};
+
 struct dtGrid 
 {
 public:
 	int vertsCount;
 	int polyCount;
 	float verts[DT_grid_count_plusone * DT_grid_count_plusone * 3];
+	float baseZ;
 
 	dtGrid(float baseX, float baseY, float baseZ):vertsCount(DT_grid_count_plusone * DT_grid_count_plusone), 
 		polyCount((DT_grid_count_plusone -1 ) * (DT_grid_count_plusone - 1))
@@ -262,6 +291,7 @@ public:
 				verts[_index + 1] = baseZ;
 			}
 		}
+		this->baseZ = baseZ;
 	}
 };
 
@@ -287,6 +317,7 @@ struct dtMeshHeader
 	int bvNodeCount;			///< The number of bounding volume nodes. (Zero if bounding volumes are disabled.)
 	int offMeshConCount;		///< The number of off-mesh connections.
 	int offMeshBase;			///< The index of the first polygon which is an off-mesh connection.
+	//int offMeshVertsBase;
 	float walkableHeight;		///< The height of the agents using the tile.
 	float walkableRadius;		///< The radius of the agents using the tile.
 	float walkableClimb;		///< The maximum climb height of the agents using the tile.
@@ -388,7 +419,7 @@ public:
 	dtStatus removeTile(dtTileRef ref, unsigned char** data, int* dataSize);
 
 
-	dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo);
+	dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& gridOffmesh);
 
 	/// @}
 
