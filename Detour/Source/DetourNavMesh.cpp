@@ -1619,7 +1619,7 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& g
 
 		const int _gridvertsSize = dtAlign4(sizeof(float) * 3 * gridInfo.vertsCount );
 		const int _gridpolysSize = dtAlign4(sizeof(dtPoly) * gridInfo.polyCount);
-		const int _gridlinksSize = dtAlign4(sizeof(dtLink) * ( (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 1) * 4 + offMeshConLinkCount * 2));
+		const int _gridlinksSize = dtAlign4(sizeof(dtLink) * ( (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 1) * 4));
 		const int _griddetailMeshesSize = dtAlign4(sizeof(dtPolyDetail) * gridInfo.polyCount);
 		const int _griddetailVertsSize = dtAlign4(sizeof(float) * 3 * 0);
 		const int _griddetailTrisSize = dtAlign4(sizeof(unsigned char) * 4 * (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 1) * 2);
@@ -1637,15 +1637,27 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& g
 
 		const int _newOffMeshvertsSize = dtAlign4(sizeof(float) * 3 *  storedOffMeshConCount * 2);
 		const int _newOffMeshpolysSize = dtAlign4(sizeof(dtPoly) * storedOffMeshConCount);
+		const int _newOffMeshlinksSize = dtAlign4(sizeof(dtLink) * (offMeshConLinkCount * 2));
+		const int _newOffMeshConsSize = dtAlign4(sizeof(dtOffMeshConnection) * storedOffMeshConCount);
 
-		const int _totalVertsSize = _gridvertsSize + _srcvertsSize + _newOffMeshvertsSize;
-		const int _totalPolySize = _gridpolysSize + _srcpolysSize + _newOffMeshpolysSize;
-		const int _totalLinkSize = _gridlinksSize + _srclinksSize;
+		const int _reserveOffMeshvertsSize = dtAlign4(sizeof(float) * 3 * DT_RESERVE_OFFMESH * 2);
+		const int _reserveOffMeshpolysSize = dtAlign4(sizeof(dtPoly) * DT_RESERVE_OFFMESH);
+		const int _reserveOffMeshlinksSize = dtAlign4(sizeof(dtLink) * (DT_RESERVE_OFFMESH * 2));
+		const int _reserveOffMeshConsSize = dtAlign4(sizeof(dtOffMeshConnection) * DT_RESERVE_OFFMESH);
+		
+		const int _totalOffMeshCount = (storedOffMeshConCount + header->offMeshConCount) + DT_RESERVE_OFFMESH;
+		
+
+			
+
+		const int _totalVertsSize = _gridvertsSize + _srcvertsSize + _newOffMeshvertsSize + _reserveOffMeshvertsSize;
+		const int _totalPolySize = _gridpolysSize + _srcpolysSize + _newOffMeshpolysSize + _reserveOffMeshpolysSize;
+		const int _totalLinkSize = _gridlinksSize + _srclinksSize + _newOffMeshlinksSize + _reserveOffMeshlinksSize;
 		const int _totalDetailMeshesSize = _griddetailMeshesSize + _srcdetailMeshesSize;
 		const int _totalDetailVertsSize = _griddetailVertsSize + _srcdetailVertsSize;
 		const int _totalDetailTrisSize = _griddetailTrisSize + _srcdetailTrisSize;
 		const int _totalbvTreeSize = _gridbvTreeSize + _srcbvTreeSize;
-		const int _totalOffMeshConSize = _gridoffMeshConsSize + _srcoffMeshConsSize;
+		const int _totalOffMeshConSize = _gridoffMeshConsSize + _srcoffMeshConsSize + _newOffMeshConsSize + _reserveOffMeshConsSize;
 
 		int _totaldataSize = headerSize + _totalVertsSize + _totalPolySize + _totalLinkSize + _totalDetailMeshesSize + _totalDetailVertsSize + _totalDetailTrisSize + _totalbvTreeSize + _totalOffMeshConSize;
 
@@ -1721,6 +1733,9 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& g
 				n++;
 			}
 		}
+
+		// verts reserved Off-mesh link vertices.
+		// default to 0
 		
 		// poly
 		memcpy(_gridnavPolys, _srcnavPolys, _srcpolysSize);
@@ -1806,6 +1821,17 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& g
 			}
 		}
 
+		// poly reserve Off-mesh link poly.
+		for (int i = 0; i < DT_RESERVE_OFFMESH; ++i)
+		{
+			dtPoly* p = &_gridnavPolys[header->polyCount + gridInfo.polyCount + n + i];
+			p->vertCount = 0;
+			p->verts[0] = (unsigned short)(header->vertCount + gridInfo.vertsCount + n * 2 + i * 2 + 0);
+			p->verts[1] = (unsigned short)(header->vertCount + gridInfo.vertsCount + n * 2 + i * 2 + 1);
+			p->setType(DT_POLYTYPE_OFFMESH_CONNECTION);
+			p->firstLink = DT_NULL_LINK;
+		}
+
 		//link 
 		//memcpy(_gridlink, _srclink, _srclinksSize);
 
@@ -1883,16 +1909,27 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& g
 			}
 		}
 
+		// reserve off-mesh connections
+		for (int i = 0; i < DT_RESERVE_OFFMESH; ++i)
+		{
+			dtOffMeshConnection* con = &_gridoffMeshCons[i + n + header->offMeshConCount];
+			con->poly = (unsigned short)(header->polyCount + gridInfo.polyCount + n + i);
+			con->pos[0] = con->pos[1] = con->pos[2] = con->pos[3] = con->pos[4] = con->pos[5] = 0.f;
+			con->rad = 0.f;
+			con->flags = DT_OFFMESH_CON_BIDIR;
+			con->side = 0xff;
+		}
+
 		dtFree(offMeshConClass);
 
-		_gridheader->vertCount += (gridInfo.vertsCount + storedOffMeshConCount * 2);
-		_gridheader->polyCount += (gridInfo.polyCount + storedOffMeshConCount);
-		_gridheader->maxLinkCount += ((DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 1) * 4 + offMeshConLinkCount * 2);
+		_gridheader->vertCount += (gridInfo.vertsCount + storedOffMeshConCount * 2 + DT_RESERVE_OFFMESH * 2);
+		_gridheader->polyCount += (gridInfo.polyCount + storedOffMeshConCount + DT_RESERVE_OFFMESH);
+		_gridheader->maxLinkCount += ((DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 1) * 4 + offMeshConLinkCount * 2 + DT_RESERVE_OFFMESH * 2);
 		_gridheader->detailMeshCount += gridInfo.polyCount;
 		_gridheader->detailTriCount += (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 1) * 2;
 		_gridheader->bvNodeCount += header->bvNodeCount > 0 ? gridInfo.polyCount * 2 : 0;
 		_gridheader->offMeshBase = _srcGroundPolyCount + gridInfo.polyCount;
-		_gridheader->offMeshConCount = header->offMeshConCount + storedOffMeshConCount;
+		_gridheader->offMeshConCount = header->offMeshConCount + storedOffMeshConCount + DT_RESERVE_OFFMESH;
 
 		removeTile(ref, &data, &dataSize);
 		addTile(_griddata, _totaldataSize, 0, 0, 0);
