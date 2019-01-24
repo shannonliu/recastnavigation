@@ -468,6 +468,9 @@ public:
 	/// @return The tile for the specified reference, or null if the 
 	///		reference is invalid.
 	const dtMeshTile* getTileByRef(dtTileRef ref) const;
+
+
+	dtMeshTile* getTileByRef(dtTileRef ref);
 	
 	/// The maximum number of tiles supported by the navigation mesh.
 	/// @return The maximum number of tiles supported by the navigation mesh.
@@ -680,12 +683,12 @@ private:
 	/// Builds internal polygons links for a tile.
 	void connectIntLinks(dtMeshTile* tile);
 	/// Builds internal polygons links for a tile.
-	void baseOffMeshLinks(dtMeshTile* tile);
+	void baseOffMeshLinks(dtMeshTile* tile, int beginIdex = 0);
 
 	/// Builds external polygon links for a tile.
 	void connectExtLinks(dtMeshTile* tile, dtMeshTile* target, int side);
 	/// Builds external polygon links for a tile.
-	void connectExtOffMeshLinks(dtMeshTile* tile, dtMeshTile* target, int side);
+	void connectExtOffMeshLinks(dtMeshTile* tile, dtMeshTile* target, int side, int beginIndex = 0);
 	
 	/// Removes external links at specified side.
 	void unconnectLinks(dtMeshTile* tile, dtMeshTile* target);

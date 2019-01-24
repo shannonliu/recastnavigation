@@ -452,7 +452,7 @@ void dtNavMesh::connectExtLinks(dtMeshTile* tile, dtMeshTile* target, int side)
 	}
 }
 
-void dtNavMesh::connectExtOffMeshLinks(dtMeshTile* tile, dtMeshTile* target, int side)
+void dtNavMesh::connectExtOffMeshLinks(dtMeshTile* tile, dtMeshTile* target, int side, int beginIndex)
 {
 	if (!tile) return;
 	
@@ -460,7 +460,7 @@ void dtNavMesh::connectExtOffMeshLinks(dtMeshTile* tile, dtMeshTile* target, int
 	// We are interested on links which land from target tile to this tile.
 	const unsigned char oppositeSide = (side == -1) ? 0xff : (unsigned char)dtOppositeTile(side);
 	
-	for (int i = 0; i < target->header->offMeshConCount; ++i)
+	for (int i = beginIndex; i < target->header->offMeshConCount; ++i)
 	{
 		dtOffMeshConnection* targetCon = &target->offMeshCons[i];
 		if (targetCon->side != oppositeSide)
@@ -559,14 +559,14 @@ void dtNavMesh::connectIntLinks(dtMeshTile* tile)
 	}
 }
 
-void dtNavMesh::baseOffMeshLinks(dtMeshTile* tile)
+void dtNavMesh::baseOffMeshLinks(dtMeshTile* tile, int beginIdex)
 {
 	if (!tile) return;
 	
 	dtPolyRef base = getPolyRefBase(tile);
 	
 	// Base off-mesh connection start points.
-	for (int i = 0; i < tile->header->offMeshConCount; ++i)
+	for (int i = beginIdex; i < tile->header->offMeshConCount; ++i)
 	{
 		dtOffMeshConnection* con = &tile->offMeshCons[i];
 		dtPoly* poly = &tile->polys[con->poly];
@@ -1105,6 +1105,20 @@ const dtMeshTile* dtNavMesh::getTileByRef(dtTileRef ref) const
 	return tile;
 }
 
+dtMeshTile* dtNavMesh::getTileByRef(dtTileRef ref)
+{
+	if (!ref)
+		return 0;
+	unsigned int tileIndex = decodePolyIdTile((dtPolyRef)ref);
+	unsigned int tileSalt = decodePolyIdSalt((dtPolyRef)ref);
+	if ((int)tileIndex >= m_maxTiles)
+		return 0;
+	dtMeshTile* tile = &m_tiles[tileIndex];
+	if (tile->salt != tileSalt)
+		return 0;
+	return tile;
+}
+
 int dtNavMesh::getMaxTiles() const
 {
 	return m_maxTiles;
@@ -1525,7 +1539,7 @@ dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh)
 	dtStatus flag = DT_SUCCESS;
 	do
 	{
-		const dtMeshTile* _currentTile = getTileByRef(ref);
+		dtMeshTile* _currentTile = getTileByRef(ref);
 		if (nullptr == _currentTile)
 		{
 			flag = DT_FAILURE;
@@ -1682,6 +1696,9 @@ dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh)
 				}
 
 				//////////////////////////////////////////////////////////////////////////
+				// make link
+				baseOffMeshLinks(_currentTile, i);
+				connectExtOffMeshLinks(_currentTile, _currentTile, -1, i);
 				break;
 			}
 		}
