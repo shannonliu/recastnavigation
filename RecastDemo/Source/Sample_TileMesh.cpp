@@ -113,6 +113,12 @@ public:
 			if (m_sample)
 				m_sample->removeAllTiles();
 		}
+
+		if (imguiButton("Add OffMesh Link"))
+		{
+			if (m_sample)
+				m_sample->AddOffMeshLink();
+		}
 	}
 
 	virtual void handleClick(const float* /*s*/, const float* p, bool shift)
@@ -721,6 +727,23 @@ void Sample_TileMesh::removeTile(const float* pos)
 	m_tileCol = duRGBA(128,32,16,64);
 	
 	m_navMesh->removeTile(m_navMesh->getTileRefAt(tx,ty,0),0,0);
+}
+
+void Sample_TileMesh::AddOffMeshLink()
+{
+	if (!m_geom) return;
+	if (!m_navMesh) return;
+
+	dtGridOffmesh _gridOffmesh;
+	_gridOffmesh.offMeshConVerts = m_geom->getOffMeshConnectionVerts();
+	_gridOffmesh.offMeshConRad = m_geom->getOffMeshConnectionRads();
+	_gridOffmesh.offMeshConDir = m_geom->getOffMeshConnectionDirs();
+	_gridOffmesh.offMeshConAreas = m_geom->getOffMeshConnectionAreas();
+	_gridOffmesh.offMeshConFlags = m_geom->getOffMeshConnectionFlags();
+	_gridOffmesh.offMeshConUserID = m_geom->getOffMeshConnectionId();
+	_gridOffmesh.offMeshConCount = m_geom->getOffMeshConnectionCount();
+
+	m_navMesh->AddOffMeshLink(m_navMesh->getTileRefAt(4, 6, 0), _gridOffmesh);
 }
 
 void Sample_TileMesh::CreateTile(const float* pos)

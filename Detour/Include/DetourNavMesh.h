@@ -422,6 +422,8 @@ public:
 
 	dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& gridOffmesh);
 
+	dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh);
+
 	/// @}
 
 	/// @{

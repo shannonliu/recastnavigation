@@ -1520,6 +1520,176 @@ dtStatus dtNavMesh::getPolyArea(dtPolyRef ref, unsigned char* resultArea) const
 	
 	return DT_SUCCESS;
 }
+dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh)
+{
+	dtStatus flag = DT_SUCCESS;
+	do
+	{
+		const dtMeshTile* _currentTile = getTileByRef(ref);
+		if (nullptr == _currentTile)
+		{
+			flag = DT_FAILURE;
+			break;
+		}
+
+		unsigned char* data = _currentTile->data;
+		int dataSize = _currentTile->dataSize;
+
+
+		dtMeshHeader* header = _currentTile->header;
+		if (header->magic != DT_NAVMESH_MAGIC)
+		{
+			flag = DT_FAILURE | DT_WRONG_MAGIC;
+			break;
+		}
+
+		if (header->version != DT_NAVMESH_VERSION)
+		{
+			flag = DT_FAILURE | DT_WRONG_VERSION;
+			break;
+		}
+
+		int storedOffMeshConCount = 0;
+		unsigned char* offMeshConClass = 0;
+		// begin to cook off mesh data
+		{
+			if (gridOffmesh.offMeshConCount > 0)
+			{
+				offMeshConClass = (unsigned char*)dtAlloc(sizeof(unsigned char)*gridOffmesh.offMeshConCount * 2, DT_ALLOC_TEMP);
+				if (nullptr == offMeshConClass)
+				{
+					flag = DT_FAILURE;
+					break;
+				}
+
+				// Find tight heigh bounds, used for culling out off-mesh start locations.
+				float hmin = FLT_MAX;
+				float hmax = -FLT_MAX;
+
+				for (int i = 0; i < header->vertCount; ++i)
+				{
+					const float h = _currentTile->verts[i * 3 + 1];
+					hmin = dtMin(hmin, h);
+					hmax = dtMax(hmax, h);
+				}
+
+				hmin -= header->walkableClimb;
+				hmax += header->walkableClimb;
+				float bmin[3], bmax[3];
+				dtVcopy(bmin, header->bmin);
+				dtVcopy(bmax, header->bmax);
+				bmin[1] = hmin;
+				bmax[1] = hmax;
+
+				for (int i = 0; i < gridOffmesh.offMeshConCount; ++i)
+				{
+					const float* p0 = &gridOffmesh.offMeshConVerts[(i * 2 + 0) * 3];
+					const float* p1 = &gridOffmesh.offMeshConVerts[(i * 2 + 1) * 3];
+					offMeshConClass[i * 2 + 0] = classifyOffMeshPoint(p0, bmin, bmax);
+					offMeshConClass[i * 2 + 1] = classifyOffMeshPoint(p1, bmin, bmax);
+
+					// Zero out off-mesh start positions which are not even potentially touching the mesh.
+					if (offMeshConClass[i * 2 + 0] == 0xff)
+					{
+						if (p0[1] < bmin[1] || p0[1] > bmax[1])
+							offMeshConClass[i * 2 + 0] = 0;
+					}
+
+					if (offMeshConClass[i * 2 + 0] == 0xff)
+						storedOffMeshConCount++;
+				}
+			}
+		}
+
+		int _validOffmeshIndex = header->offMeshBase;
+		for (int i = 0; i < header->offMeshConCount; ++i)
+		{
+			dtPoly* _OffMeshPoly = &_currentTile->polys[header->offMeshBase + i];
+			if (0 == _OffMeshPoly->vertCount)
+			{
+				if (header->offMeshConCount - i < storedOffMeshConCount)//no enough space
+				{
+					storedOffMeshConCount = header->offMeshConCount - i;
+				}
+
+				_validOffmeshIndex = header->offMeshBase + i;
+
+				//////////////////////////////////////////////////////////////////////////
+				// verts new Off-mesh link vertices.
+				int n = 0;
+				for (int j = 0; j < gridOffmesh.offMeshConCount; ++j)
+				{
+					// Only store connections which start from this tile.
+					if (offMeshConClass[j * 2 + 0] == 0xff)
+					{
+						if (n >= storedOffMeshConCount)
+						{
+							break;
+						}
+						const float* linkv = &gridOffmesh.offMeshConVerts[j * 2 * 3];
+						float* v = &_currentTile->verts[(_OffMeshPoly->verts[0] + n * 2) * 3];
+						dtVcopy(&v[0], &linkv[0]);
+						dtVcopy(&v[3], &linkv[3]);
+						n++;
+					}
+				}
+				// poly
+				n = 0;
+				for (int k = 0; k < gridOffmesh.offMeshConCount; ++k)
+				{
+					// Only store connections which start from this tile.
+					if (offMeshConClass[k * 2 + 0] == 0xff)
+					{
+						if (n >= storedOffMeshConCount)
+						{
+							break;
+						}
+						dtPoly* p = &_currentTile->polys[_validOffmeshIndex + n];
+						p->vertCount = 2;
+						//p->verts[0] = (unsigned short)(header->vertCount + gridInfo.vertsCount + n * 2 + 0);
+						//p->verts[1] = (unsigned short)(header->vertCount + gridInfo.vertsCount + n * 2 + 1);
+						p->flags = gridOffmesh.offMeshConFlags[i];
+						p->setArea(gridOffmesh.offMeshConAreas[i]);
+						p->setType(DT_POLYTYPE_OFFMESH_CONNECTION);
+						n++;
+					}
+				}
+
+				// Store Off-Mesh connections.
+				n = 0;
+				for (int q = 0; q < gridOffmesh.offMeshConCount; ++q)
+				{
+					// Only store connections which start from this tile.
+					if (offMeshConClass[q * 2 + 0] == 0xff)
+					{
+						if (n >= storedOffMeshConCount)
+						{
+							break;
+						}
+						dtOffMeshConnection* con = &_currentTile->offMeshCons[n + i];
+						//con->poly = (unsigned short)(header->polyCount + gridInfo.polyCount + n);
+						// Copy connection end-points.
+						const float* endPts = &gridOffmesh.offMeshConVerts[q * 2 * 3];
+						dtVcopy(&con->pos[0], &endPts[0]);
+						dtVcopy(&con->pos[3], &endPts[3]);
+						con->rad = gridOffmesh.offMeshConRad[q];
+						con->flags = gridOffmesh.offMeshConDir[q] ? DT_OFFMESH_CON_BIDIR : 0;
+						con->side = offMeshConClass[q * 2 + 1];
+						if (gridOffmesh.offMeshConUserID)
+							con->userId = gridOffmesh.offMeshConUserID[q];
+						n++;
+					}
+				}
+
+				//////////////////////////////////////////////////////////////////////////
+				break;
+			}
+		}
+
+		dtFree(offMeshConClass);
+	} while (false);
+	return flag;
+}
 
 dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& gridOffmesh)
 {
