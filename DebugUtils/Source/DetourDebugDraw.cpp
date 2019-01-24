@@ -128,10 +128,10 @@ static void drawMeshTile(duDebugDraw* dd, const dtNavMesh& mesh, const dtNavMesh
 	int tileNum = mesh.decodePolyIdTile(base);
 	const unsigned int tileColor = duIntToCol(tileNum, 128);
 
-	if (!(4 == tile->header->x && 6 == tile->header->y))
-	{
-		return;
-	}
+// 	if (!(4 == tile->header->x && 6 == tile->header->y))
+// 	{
+// 		return;
+// 	}
 	
 	dd->depthMask(false);
 

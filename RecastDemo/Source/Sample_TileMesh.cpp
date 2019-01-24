@@ -758,7 +758,7 @@ void Sample_TileMesh::CreateTile(const float* pos)
 	const int tx = (int)((pos[0] - bmin[0]) / ts);
 	const int ty = (int)((pos[2] - bmin[2]) / ts);
 
-	dtGrid _grid(pos[0], pos[2], pos[1] + 1);
+	dtGrid _grid(pos[0], pos[2], pos[1] + 2);
 
 	dtGridOffmesh _gridOffmesh;
 	_gridOffmesh.offMeshConVerts = m_geom->getOffMeshConnectionVerts();

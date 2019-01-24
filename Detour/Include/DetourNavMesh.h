@@ -288,8 +288,8 @@ public:
 			for (int j = 0; j < DT_grid_count_plusone; j++)
 			{
 				int _index = (i * DT_grid_count_plusone + j) * 3;
-				verts[_index] = DT_grid_UnitSize * i + baseX;
-				verts[_index + 2] = DT_grid_UnitSize * j + baseY;
+				verts[_index] = DT_grid_UnitSize * i + baseX - (DT_grid_count_plusone - 1) * DT_grid_UnitSize * 0.5f;
+				verts[_index + 2] = DT_grid_UnitSize * j + baseY - (DT_grid_count_plusone - 1) * DT_grid_UnitSize * 0.5f;
 				verts[_index + 1] = baseZ;
 			}
 		}
