@@ -1580,20 +1580,45 @@ dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh)
 				float hmin = FLT_MAX;
 				float hmax = -FLT_MAX;
 
+				float xmin = FLT_MAX;
+				float xmax = -FLT_MAX;
+
+				float zmin = FLT_MAX;
+				float zmax = -FLT_MAX;
+
 				for (int i = 0; i < header->vertCount; ++i)
 				{
 					const float h = _currentTile->verts[i * 3 + 1];
 					hmin = dtMin(hmin, h);
 					hmax = dtMax(hmax, h);
+
+					const float x = _currentTile->verts[i * 3 + 0];
+					xmin = dtMin(xmin, x);
+					xmax = dtMax(xmax, x);
+
+					const float z = _currentTile->verts[i * 3 + 2];
+					zmin = dtMin(zmin, z);
+					zmax = dtMax(zmax, z);
 				}
 
 				hmin -= header->walkableClimb;
 				hmax += header->walkableClimb;
+
+				xmin -= header->walkableClimb;
+				xmax += header->walkableClimb;
+
+				zmin -= header->walkableClimb;
+				zmax += header->walkableClimb;
+
 				float bmin[3], bmax[3];
-				dtVcopy(bmin, header->bmin);
-				dtVcopy(bmax, header->bmax);
+				//dtVcopy(bmin, header->bmin);
+				//dtVcopy(bmax, header->bmax);
+				bmin[0] = dtMin(xmin, header->bmin[0]);
+				bmax[0] = dtMax(xmax, header->bmax[0]);
 				bmin[1] = hmin;
 				bmax[1] = hmax;
+				bmin[2] = dtMin(zmin, header->bmin[2]);
+				bmax[2] = dtMax(zmax, header->bmax[2]);
 
 				for (int i = 0; i < gridOffmesh.offMeshConCount; ++i)
 				{
@@ -1699,7 +1724,7 @@ dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh)
 				// make link
 				baseOffMeshLinks(_currentTile, i);
 				connectExtOffMeshLinks(_currentTile, _currentTile, -1, i);
-
+				
 				// Create connections with neighbour tiles.
 				static const int MAX_NEIS = 32;
 				dtMeshTile* neis[MAX_NEIS];
@@ -1730,6 +1755,7 @@ dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh)
 						connectExtOffMeshLinks(neis[j], _currentTile, dtOppositeTile(ii));
 					}
 				}
+				
 
 				break;
 			}
