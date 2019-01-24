@@ -1699,6 +1699,38 @@ dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh)
 				// make link
 				baseOffMeshLinks(_currentTile, i);
 				connectExtOffMeshLinks(_currentTile, _currentTile, -1, i);
+
+				// Create connections with neighbour tiles.
+				static const int MAX_NEIS = 32;
+				dtMeshTile* neis[MAX_NEIS];
+				int nneis;
+
+				// Connect with layers in current tile.
+				nneis = getTilesAt(header->x, header->y, neis, MAX_NEIS);
+				for (int j = 0; j < nneis; ++j)
+				{
+					if (neis[j] == _currentTile)
+						continue;
+
+					connectExtLinks(_currentTile, neis[j], -1);
+					connectExtLinks(neis[j], _currentTile, -1);
+					connectExtOffMeshLinks(_currentTile, neis[j], -1);
+					connectExtOffMeshLinks(neis[j], _currentTile, -1);
+				}
+
+				// Connect with neighbour tiles.
+				for (int ii = 0; ii < 8; ++ii)
+				{
+					nneis = getNeighbourTilesAt(header->x, header->y, ii, neis, MAX_NEIS);
+					for (int j = 0; j < nneis; ++j)
+					{
+						connectExtLinks(_currentTile, neis[j], ii);
+						connectExtLinks(neis[j], _currentTile, dtOppositeTile(ii));
+						connectExtOffMeshLinks(_currentTile, neis[j], i);
+						connectExtOffMeshLinks(neis[j], _currentTile, dtOppositeTile(ii));
+					}
+				}
+
 				break;
 			}
 		}
