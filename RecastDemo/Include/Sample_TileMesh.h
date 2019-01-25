@@ -26,6 +26,9 @@
 
 class Sample_TileMesh : public Sample
 {
+public:
+	float m_spos[3];
+	float m_epos[3];
 protected:
 	bool m_keepInterResults;
 	bool m_buildAll;

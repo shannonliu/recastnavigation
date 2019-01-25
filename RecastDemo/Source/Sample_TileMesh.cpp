@@ -75,16 +75,36 @@ inline unsigned int ilog2(unsigned int v)
 class NavMeshTileTool : public SampleTool
 {
 	Sample_TileMesh* m_sample;
+	dtNavMeshQuery* m_navQuery;
+	dtQueryFilter m_filter;
+
 	float m_hitPos[3];
 	bool m_hitPosSet;
+	float m_polyPickExt[3];
+
+	dtPolyRef m_startRef;
+	dtPolyRef m_endRef;
+	int m_npolys;
+	dtPolyRef m_polys[256];
+
+public:
+	float m_spos[3];
+	float m_epos[3];
 	
 public:
 
 	NavMeshTileTool() :
 		m_sample(0),
-		m_hitPosSet(false)
+		m_hitPosSet(false),
+		m_startRef(0),
+		m_endRef(0),
+		m_npolys(0)
 	{
 		m_hitPos[0] = m_hitPos[1] = m_hitPos[2] = 0;
+
+		m_polyPickExt[0] = 2;
+		m_polyPickExt[1] = 4;
+		m_polyPickExt[2] = 2;
 	}
 
 	virtual ~NavMeshTileTool()
@@ -96,6 +116,19 @@ public:
 	virtual void init(Sample* sample)
 	{
 		m_sample = (Sample_TileMesh*)sample; 
+
+		m_navQuery = sample->getNavMeshQuery();
+
+		if (m_navQuery)
+		{
+			// Change costs.
+			m_filter.setAreaCost(SAMPLE_POLYAREA_GROUND, 1.0f);
+			m_filter.setAreaCost(SAMPLE_POLYAREA_WATER, 10.0f);
+			m_filter.setAreaCost(SAMPLE_POLYAREA_ROAD, 1.0f);
+			m_filter.setAreaCost(SAMPLE_POLYAREA_DOOR, 1.0f);
+			m_filter.setAreaCost(SAMPLE_POLYAREA_GRASS, 2.0f);
+			m_filter.setAreaCost(SAMPLE_POLYAREA_JUMP, 1.5f);
+		}
 	}
 	
 	virtual void reset() {}
@@ -118,6 +151,21 @@ public:
 		{
 			if (m_sample)
 				m_sample->AddOffMeshLink();
+		}
+
+		if (imguiButton("Test Poly"))
+		{
+			m_spos[0] = m_sample->m_spos[0];
+			m_spos[1] = m_sample->m_spos[1];
+			m_spos[2] = m_sample->m_spos[2];
+
+			m_epos[0] = m_sample->m_epos[0];
+			m_epos[1] = m_sample->m_epos[1];
+			m_epos[2] = m_sample->m_epos[2];
+
+			m_navQuery->findNearestPoly(m_spos, m_polyPickExt, &m_filter, &m_startRef, 0);
+			m_navQuery->findNearestPoly(m_epos, m_polyPickExt, &m_filter, &m_endRef, 0);
+			m_navQuery->findPath(m_startRef, m_endRef, m_spos, m_epos, &m_filter, m_polys, &m_npolys, 256);
 		}
 	}
 
@@ -158,6 +206,15 @@ public:
 			glEnd();
 			glLineWidth(1.0f);
 		}
+
+		glColor4ub(255, 0, 0, 128);
+		glLineWidth(2.0f);
+		glBegin(GL_LINES);
+		glVertex3f(m_spos[0], m_spos[1], m_spos[2]);
+		glVertex3f(m_epos[0], m_epos[1], m_epos[2]);
+		
+		glEnd();
+		glLineWidth(1.0f);
 	}
 	
 	virtual void handleRenderOverlay(double* proj, double* model, int* view)
@@ -770,6 +827,14 @@ void Sample_TileMesh::CreateTile(const float* pos)
 	_gridOffmesh.offMeshConCount = m_geom->getOffMeshConnectionCount();
 
 	m_navMesh->ReAddTitle(m_navMesh->getTileRefAt(tx, ty, 0), _grid, _gridOffmesh);
+
+	m_spos[0] = _grid.verts[0 + 3 * DT_grid_count_plusone + 3];
+	m_spos[1] = _grid.verts[1 + 3 * DT_grid_count_plusone + 3];
+	m_spos[2] = _grid.verts[2 + 3 * DT_grid_count_plusone + 3];
+
+	m_epos[0] = _grid.verts[0 + _grid.vertsCount * 3 - 3 * DT_grid_count_plusone - 6];
+	m_epos[1] = _grid.verts[1 + _grid.vertsCount * 3 - 3 * DT_grid_count_plusone - 6];
+	m_epos[2] = _grid.verts[2 + _grid.vertsCount * 3 - 3 * DT_grid_count_plusone - 6];
 }
 
 void Sample_TileMesh::buildAllTiles()
