@@ -297,6 +297,35 @@ public:
 	}
 };
 
+struct dtStraightLadder
+{
+public:
+	int vertsCount = 4;
+	int polyCount = 1;
+	float verts[4 * 3];
+	float baseZ;
+	float baseX;
+	float baseY;
+	dtStraightLadder(float baseX, float baseY, float baseZ, float length, float width, float height):baseX(baseX),baseY(baseY),baseZ(baseZ)
+	{
+		verts[0 * 3 + 0] = baseX - length * 0.5f;
+		verts[0 * 3 + 2] = baseZ + width * 0.5f;
+		verts[0 * 3 + 1] = baseY + height * 1.f;
+
+		verts[1 * 3 + 0] = baseX + length * 0.5f;
+		verts[1 * 3 + 2] = baseZ + width * 0.5f;
+		verts[1 * 3 + 1] = baseY + height * 1.f;
+
+		verts[2 * 3 + 0] = baseX - length * 0.5f;
+		verts[2 * 3 + 2] = baseZ - width * 0.5f;
+		verts[2 * 3 + 1] = baseY - height * 0.f;
+
+		verts[3 * 3 + 0] = baseX + length * 0.5f;
+		verts[3 * 3 + 2] = baseZ - width * 0.5f;
+		verts[3 * 3 + 1] = baseY - height * 0.f;
+	}
+};
+
 /// Provides high level information related to a dtMeshTile object.
 /// @ingroup detour
 struct dtMeshHeader
@@ -423,6 +452,8 @@ public:
 	dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& gridOffmesh);
 
 	dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh);
+
+	dtStatus dtNavMesh::AddStraightLadder(dtTileRef ref, dtStraightLadder& ladder);
 
 	/// @}
 

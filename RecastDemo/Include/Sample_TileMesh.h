@@ -109,6 +109,8 @@ public:
 
 	void AddOffMeshLink();
 
+	void AddStraightLadder(const float* pos);
+
 private:
 	// Explicitly disabled copy constructor and copy assignment operator.
 	Sample_TileMesh(const Sample_TileMesh&);

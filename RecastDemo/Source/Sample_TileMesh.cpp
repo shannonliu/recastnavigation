@@ -87,6 +87,8 @@ class NavMeshTileTool : public SampleTool
 	int m_npolys;
 	dtPolyRef m_polys[256];
 
+	bool bAddLadderFlag = false;
+
 public:
 	float m_spos[3];
 	float m_epos[3];
@@ -167,20 +169,33 @@ public:
 			m_navQuery->findNearestPoly(m_epos, m_polyPickExt, &m_filter, &m_endRef, 0);
 			m_navQuery->findPath(m_startRef, m_endRef, m_spos, m_epos, &m_filter, m_polys, &m_npolys, 256);
 		}
+
+		if (imguiCheck("Add Ladder", bAddLadderFlag))
+		{
+			bAddLadderFlag = !bAddLadderFlag;
+		}
 	}
 
 	virtual void handleClick(const float* /*s*/, const float* p, bool shift)
 	{
 		m_hitPosSet = true;
 		rcVcopy(m_hitPos,p);
-		if (m_sample)
+		if (bAddLadderFlag)
 		{
-			if (shift)
-				m_sample->removeTile(m_hitPos);
-			else
-				//m_sample->buildTile(m_hitPos);
-				m_sample->CreateTile(m_hitPos);
+			m_sample->AddStraightLadder(m_hitPos);
 		}
+		else
+		{
+			if (m_sample)
+			{
+				if (shift)
+					m_sample->removeTile(m_hitPos);
+				else
+					//m_sample->buildTile(m_hitPos);
+					m_sample->CreateTile(m_hitPos);
+			}
+		}
+		
 	}
 
 	virtual void handleToggle() {}
@@ -801,6 +816,23 @@ void Sample_TileMesh::AddOffMeshLink()
 	_gridOffmesh.offMeshConCount = m_geom->getOffMeshConnectionCount();
 
 	m_navMesh->AddOffMeshLink(m_navMesh->getTileRefAt(4, 6, 0), _gridOffmesh);
+}
+
+void Sample_TileMesh::AddStraightLadder(const float* pos)
+{
+	if (!m_geom) return;
+	if (!m_navMesh) return;
+
+	const float* bmin = m_geom->getNavMeshBoundsMin();
+	const float* bmax = m_geom->getNavMeshBoundsMax();
+
+	const float ts = m_tileSize*m_cellSize;
+	const int tx = (int)((pos[0] - bmin[0]) / ts);
+	const int ty = (int)((pos[2] - bmin[2]) / ts);
+
+	dtStraightLadder _ladder(pos[0], pos[1], pos[2], 2.f, 3.f, 4.f);
+
+	m_navMesh->AddStraightLadder(m_navMesh->getTileRefAt(tx, ty, 0), _ladder);
 }
 
 void Sample_TileMesh::CreateTile(const float* pos)

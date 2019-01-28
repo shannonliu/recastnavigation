@@ -2182,3 +2182,271 @@ dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& g
 
 	return flag;
 }
+
+dtStatus dtNavMesh::AddStraightLadder(dtTileRef ref, dtStraightLadder& ladder)
+{
+	dtStatus flag = DT_SUCCESS;
+
+	do 
+	{
+		dtMeshTile* _currentTile = getTileByRef(ref);
+		if (nullptr == _currentTile)
+		{
+			flag = DT_FAILURE;
+			break;
+		}
+
+		unsigned char* data = _currentTile->data;
+		int dataSize = _currentTile->dataSize;
+
+
+		dtMeshHeader* header = _currentTile->header;
+		if (header->magic != DT_NAVMESH_MAGIC)
+		{
+			flag = DT_FAILURE | DT_WRONG_MAGIC;
+			break;
+		}
+
+		const int headerSize = dtAlign4(sizeof(dtMeshHeader));
+
+		const int _srcGroundVertsCount = header->vertCount - header->offMeshConCount * 2;
+		const int _srcGroundPolyCount = header->offMeshBase;// header->polyCount - header->offMeshConCount;
+
+		const int _gridvertsSize = dtAlign4(sizeof(float) * 3 * ladder.vertsCount);
+		const int _gridpolysSize = dtAlign4(sizeof(dtPoly) * ladder.polyCount);
+		const int _gridlinksSize = dtAlign4(sizeof(dtLink) *  4);
+		const int _griddetailMeshesSize = dtAlign4(sizeof(dtPolyDetail) * ladder.polyCount);
+		const int _griddetailVertsSize = dtAlign4(sizeof(float) * 3 * 0);
+		const int _griddetailTrisSize = dtAlign4(sizeof(unsigned char) * 4 * 2);
+		const int _gridbvTreeSize = header->bvNodeCount > 0 ? dtAlign4(sizeof(dtBVNode) * ladder.polyCount * 2) : 0;
+		const int _gridoffMeshConsSize = dtAlign4(sizeof(dtOffMeshConnection) * 0);
+
+		const int _srcvertsSize = dtAlign4(sizeof(float) * 3 * header->vertCount);
+		const int _srcpolysSize = dtAlign4(sizeof(dtPoly) * header->polyCount);
+		const int _srclinksSize = dtAlign4(sizeof(dtLink) * header->maxLinkCount);
+		const int _srcdetailMeshesSize = dtAlign4(sizeof(dtPolyDetail) * _srcGroundPolyCount);
+		const int _srcdetailVertsSize = dtAlign4(sizeof(float) * 3 * header->detailVertCount);
+		const int _srcdetailTrisSize = dtAlign4(sizeof(unsigned char) * 4 * header->detailTriCount);
+		const int _srcbvTreeSize = header->bvNodeCount > 0 ? dtAlign4(sizeof(dtBVNode)*header->bvNodeCount) : 0;
+		const int _srcoffMeshConsSize = dtAlign4(sizeof(dtOffMeshConnection) * header->offMeshConCount);
+
+
+		const int _totalVertsSize = _gridvertsSize + _srcvertsSize;
+		const int _totalPolySize = _gridpolysSize + _srcpolysSize;
+		const int _totalLinkSize = _gridlinksSize + _srclinksSize;
+		const int _totalDetailMeshesSize = _griddetailMeshesSize + _srcdetailMeshesSize;
+		const int _totalDetailVertsSize = _griddetailVertsSize + _srcdetailVertsSize;
+		const int _totalDetailTrisSize = _griddetailTrisSize + _srcdetailTrisSize;
+		const int _totalbvTreeSize = _gridbvTreeSize + _srcbvTreeSize;
+		const int _totalOffMeshConSize = _gridoffMeshConsSize + _srcoffMeshConsSize;
+
+		int _totaldataSize = headerSize + _totalVertsSize + _totalPolySize + _totalLinkSize + _totalDetailMeshesSize + _totalDetailVertsSize + _totalDetailTrisSize + _totalbvTreeSize + _totalOffMeshConSize;
+
+		unsigned char* _griddata = (unsigned char*)dtAlloc(sizeof(unsigned char)*_totaldataSize, DT_ALLOC_PERM);
+		if (nullptr == _griddata)
+		{
+			flag = DT_FAILURE;
+			break;
+		}
+
+		memset(_griddata, 0, _totaldataSize);
+
+		unsigned char* dGrid = _griddata;
+		dtMeshHeader* _gridheader = dtGetThenAdvanceBufferPointer<dtMeshHeader>(dGrid, headerSize);
+		float* _gridnavVerts = dtGetThenAdvanceBufferPointer<float>(dGrid, _totalVertsSize);
+		dtPoly* _gridnavPolys = dtGetThenAdvanceBufferPointer<dtPoly>(dGrid, _totalPolySize);
+		dtLink* _gridlink = dtGetThenAdvanceBufferPointer<dtLink>(dGrid, _totalLinkSize);;
+		dtPolyDetail* _gridnavDMeshes = dtGetThenAdvanceBufferPointer<dtPolyDetail>(dGrid, _totalDetailMeshesSize);
+		float* _gridnavDVerts = dtGetThenAdvanceBufferPointer<float>(dGrid, _totalDetailVertsSize);
+		unsigned char* _gridnavDTris = dtGetThenAdvanceBufferPointer<unsigned char>(dGrid, _totalDetailTrisSize);
+		dtBVNode* _gridnavBvtree = dtGetThenAdvanceBufferPointer<dtBVNode>(dGrid, _totalbvTreeSize);
+		dtOffMeshConnection* _gridoffMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(dGrid, _totalOffMeshConSize);
+
+		unsigned char* dSrc = data;
+		dtMeshHeader* _srcheader = dtGetThenAdvanceBufferPointer<dtMeshHeader>(dSrc, headerSize);
+		float* _srcnavVerts = dtGetThenAdvanceBufferPointer<float>(dSrc, _srcvertsSize);
+		dtPoly* _srcnavPolys = dtGetThenAdvanceBufferPointer<dtPoly>(dSrc, _srcpolysSize);
+		dtLink* _srclink = dtGetThenAdvanceBufferPointer<dtLink>(dSrc, _srclinksSize);;
+		dtPolyDetail* _srcnavDMeshes = dtGetThenAdvanceBufferPointer<dtPolyDetail>(dSrc, _srcdetailMeshesSize);
+		float* _srcnavDVerts = dtGetThenAdvanceBufferPointer<float>(dSrc, _srcdetailVertsSize);
+		unsigned char* _srcnavDTris = dtGetThenAdvanceBufferPointer<unsigned char>(dSrc, _srcdetailTrisSize);
+		dtBVNode* _srcnavBvtree = dtGetThenAdvanceBufferPointer<dtBVNode>(dSrc, _srcbvTreeSize);
+		dtOffMeshConnection* _srcoffMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(dSrc, _srcoffMeshConsSize);
+
+		// header
+		memcpy(_griddata, data, headerSize);
+
+		// verts
+		memcpy(_gridnavVerts, _srcnavVerts, _srcvertsSize);
+
+		// verts new ground poly's verts
+		for (int i = 0; i < ladder.vertsCount; i++)
+		{
+			const float* iv = &ladder.verts[i * 3];
+			float* v = &_gridnavVerts[(i + _srcGroundVertsCount) * 3];// make sure ground poly is before off mesh poly
+			v[0] = iv[0];
+			v[1] = iv[1];
+			v[2] = iv[2];
+		}
+
+		// verts recopy old off mesh info
+		int n = 0;
+		for (int i = 0; i < header->offMeshConCount; ++i)
+		{
+			const float* _oldv = &_srcnavVerts[(_srcGroundVertsCount + n * 2) * 3];
+			float* v = &_gridnavVerts[(_srcGroundVertsCount + ladder.vertsCount + n * 2) * 3];
+			dtVcopy(&v[0], &_oldv[0]);
+			dtVcopy(&v[3], &_oldv[3]);
+			n++;
+		}
+
+
+		// poly
+		memcpy(_gridnavPolys, _srcnavPolys, _srcpolysSize);
+
+		// poly new ground poly
+		int _girdVertsXIndex = _srcGroundVertsCount;
+		for (int i = 0; i < ladder.polyCount; ++i)
+		{
+			dtPoly* p = &_gridnavPolys[_srcGroundPolyCount + i];
+			p->vertCount = 4;
+			p->flags = 1;
+			p->setArea(0);
+			p->setType(DT_POLYTYPE_GROUND);
+
+			int _gridZindex = i * 4;
+			int _currentPolyVertsXIndex = _girdVertsXIndex + _gridZindex ;
+
+			p->verts[0] = _currentPolyVertsXIndex + 0;
+			p->verts[1] = _currentPolyVertsXIndex + 1;
+			p->verts[2] = _currentPolyVertsXIndex + 3;
+			p->verts[3] = _currentPolyVertsXIndex + 2;
+		}
+
+		for (int i = 0; i < ladder.polyCount; ++i)
+		{
+			dtPoly* p = &_gridnavPolys[_srcGroundPolyCount + i];
+
+			for (int j = 0; j < 4; ++j)
+			{
+				p->neis[j] = DT_EXT_LINK;
+			}
+		}
+
+		// poly recopy old off mesh info
+		n = 0;
+		for (int i = 0; i < header->offMeshConCount; ++i)
+		{
+			dtPoly* _oldpoly = &_srcnavPolys[_srcGroundPolyCount + i];
+			dtPoly* _newpoly = &_gridnavPolys[_srcGroundPolyCount + ladder.polyCount + i];
+			_newpoly->vertCount = _oldpoly->vertCount;
+			_newpoly->verts[0] = (unsigned short)(_srcGroundVertsCount + ladder.vertsCount + n * 2 + 0);
+			_newpoly->verts[1] = (unsigned short)(_srcGroundVertsCount + ladder.vertsCount + n * 2 + 1);
+			_newpoly->flags = _oldpoly->flags;
+			_newpoly->areaAndtype = _oldpoly->areaAndtype;
+			n++;
+		}
+
+		// detail meshes
+		{
+			memcpy(_gridnavDMeshes, _srcnavDMeshes, _srcdetailMeshesSize);
+			memcpy(_gridnavDVerts, _srcnavDVerts, _srcdetailVertsSize);
+			memcpy(_gridnavDTris, _srcnavDTris, _srcdetailTrisSize);
+			// Create dummy detail mesh by triangulating polys.
+			int tbase = _srcnavDMeshes[_srcGroundPolyCount - 1].triBase + _srcnavDMeshes[_srcGroundPolyCount - 1].triCount;
+			for (int i = 0; i < ladder.polyCount; ++i)
+			{
+				dtPolyDetail& dtl = _gridnavDMeshes[_srcGroundPolyCount + i];
+				const int nv = _gridnavPolys[_srcGroundPolyCount + i].vertCount;
+				dtl.vertBase = 0;
+				dtl.vertCount = 0;
+				dtl.triBase = (unsigned int)tbase;
+				dtl.triCount = (unsigned char)(nv - 2);
+				// Triangulate polygon (local indices).
+				for (int j = 2; j < nv; ++j)
+				{
+					unsigned char* t = &_gridnavDTris[tbase * 4];
+					t[0] = 0;
+					t[1] = (unsigned char)(j - 1);
+					t[2] = (unsigned char)j;
+					// Bit for each edge that belongs to poly boundary.
+					t[3] = (1 << 2);
+					if (j == 2) t[3] |= (1 << 0);
+					if (j == nv - 1) t[3] |= (1 << 4);
+					tbase++;
+				}
+			}
+		}
+
+		//bvtree 
+		memcpy(_gridnavBvtree, _srcnavBvtree, _srcbvTreeSize);
+		CreateGridBVTree(_gridheader->bmin, _gridheader->bvQuantFactor, _gridnavVerts, (void*)&_gridnavPolys[_srcGroundPolyCount], ladder.polyCount, (void*)&_gridnavBvtree[header->bvNodeCount], _srcGroundPolyCount, header->bvNodeCount);
+
+		//offmesh
+		//memcpy(_gridoffMeshCons, _srcoffMeshCons, _srcoffMeshConsSize);
+		for (int i = 0; i < header->offMeshConCount; ++i)
+		{
+			dtOffMeshConnection* _newcon = &_gridoffMeshCons[i];
+			dtOffMeshConnection* _oldcon = &_srcoffMeshCons[i];
+
+			_newcon->poly = (unsigned short)(_oldcon->poly + ladder.polyCount);
+			// Copy connection end-points.
+			dtVcopy(&_newcon->pos[0], &_oldcon->pos[0]);
+			dtVcopy(&_newcon->pos[3], &_oldcon->pos[3]);
+			_newcon->rad = _oldcon->rad;
+			_newcon->flags = _oldcon->flags;
+			_newcon->side = _oldcon->side;
+			_newcon->userId = _oldcon->userId;
+		}
+
+		_gridheader->vertCount += ladder.vertsCount;
+		_gridheader->polyCount += ladder.polyCount;
+		_gridheader->maxLinkCount += 4;
+		_gridheader->detailMeshCount += ladder.polyCount;
+		_gridheader->detailTriCount += 2;
+		_gridheader->bvNodeCount += header->bvNodeCount > 0 ? ladder.polyCount * 2 : 0;
+		_gridheader->offMeshBase = _srcGroundPolyCount + ladder.polyCount;
+		_gridheader->offMeshConCount = header->offMeshConCount;
+
+		removeTile(ref, &data, &dataSize);
+
+		dtTileRef _newTileref;
+		addTile(_griddata, _totaldataSize, 0, 0, &_newTileref);
+
+		//////////////////////////////////////////////////////////////////////////
+		const int _Offmeshcount = 1;
+		float m_offMeshConVerts[_Offmeshcount * 3 * 2];
+		float m_offMeshConRads[_Offmeshcount];
+		unsigned char m_offMeshConDirs[_Offmeshcount];
+		unsigned char m_offMeshConAreas[_Offmeshcount];
+		unsigned short m_offMeshConFlags[_Offmeshcount];
+		unsigned int m_offMeshConId[_Offmeshcount];
+
+		m_offMeshConVerts[0] = ladder.verts[0 * 3 + 0];
+		m_offMeshConVerts[1] = ladder.verts[0 * 3 + 1];
+		m_offMeshConVerts[2] = ladder.verts[0 * 3 + 2];
+		m_offMeshConVerts[3] = ladder.baseX;
+		m_offMeshConVerts[4] = ladder.baseY;
+		m_offMeshConVerts[5] = ladder.baseZ;
+
+		m_offMeshConRads[0] = 0.6f;
+		m_offMeshConDirs[0] = DT_OFFMESH_CON_BIDIR;
+		m_offMeshConAreas[0] = 5;
+		m_offMeshConFlags[0] = 8;
+		m_offMeshConId[0] = 10000;
+
+		dtGridOffmesh _gridOffmesh;
+		_gridOffmesh.offMeshConVerts = m_offMeshConVerts;
+		_gridOffmesh.offMeshConRad = m_offMeshConRads;
+		_gridOffmesh.offMeshConDir = m_offMeshConDirs;
+		_gridOffmesh.offMeshConAreas = m_offMeshConAreas;
+		_gridOffmesh.offMeshConFlags = m_offMeshConFlags;
+		_gridOffmesh.offMeshConUserID = m_offMeshConId;
+		_gridOffmesh.offMeshConCount = _Offmeshcount;
+
+		AddOffMeshLink(_newTileref, _gridOffmesh);
+
+	} while (false);
+
+	return flag;
+}
