@@ -270,6 +270,8 @@ public:
 	const unsigned int* offMeshConUserID;
 	/// The number of off-mesh connections. [Limit: >= 0]
 	int offMeshConCount;
+
+	unsigned char* offMeshConClass; //[Size:2 * #offMeshConCount]
 };
 
 struct dtGrid 
@@ -278,6 +280,8 @@ public:
 	int vertsCount;
 	int polyCount;
 	float verts[DT_grid_count_plusone * DT_grid_count_plusone * 3];
+	float baseX;
+	float baseY;
 	float baseZ;
 
 	dtGrid(float baseX, float baseY, float baseZ):vertsCount(DT_grid_count_plusone * DT_grid_count_plusone), 
@@ -289,10 +293,12 @@ public:
 			{
 				int _index = (i * DT_grid_count_plusone + j) * 3;
 				verts[_index] = DT_grid_UnitSize * i + baseX - (DT_grid_count_plusone - 1) * DT_grid_UnitSize * 0.5f;
-				verts[_index + 2] = DT_grid_UnitSize * j + baseY - (DT_grid_count_plusone - 1) * DT_grid_UnitSize * 0.5f;
-				verts[_index + 1] = baseZ;
+				verts[_index + 1] = baseY;
+				verts[_index + 2] = DT_grid_UnitSize * j + baseZ - (DT_grid_count_plusone - 1) * DT_grid_UnitSize * 0.5f;
 			}
 		}
+		this->baseX = baseX;
+		this->baseY = baseY;
 		this->baseZ = baseZ;
 	}
 };
@@ -351,11 +357,87 @@ struct dtMeshHeader
 	float walkableHeight;		///< The height of the agents using the tile.
 	float walkableRadius;		///< The radius of the agents using the tile.
 	float walkableClimb;		///< The maximum climb height of the agents using the tile.
+public:
 	float bmin[3];				///< The minimum bounds of the tile's AABB. [(x, y, z)]
 	float bmax[3];				///< The maximum bounds of the tile's AABB. [(x, y, z)]
 	
 	/// The bounding volume quantization factor. 
 	float bvQuantFactor;
+};
+
+enum dtGridMetaDataSize
+{
+	VERTS_GROUND_SIZE,
+	VERTS_OFFMESH_SIZE,
+	POLY_GROUND_SIZE,
+	POLY_OFFMESH_SIZE,
+	LINK_SIZE,
+	DETAILMESHES_SIZE,
+	DETAILVERTS_SIZE,
+	DETAILTRIS_SIZE,
+	BVTREE_SIZE,
+	OFFMESHCON_SIZE,
+	COUNT_SIZE
+};
+enum dtGridMetaDataCategory
+{
+	GRIDFLOOR,
+	INPUTNAVMESH,
+	GEOMETRYOFFMESHLINK,
+	RESERVED,
+	TOTAL,
+	CATEGORY_SIZE
+};
+
+enum dtGridMetaDataCount
+{
+	GROUND_VERTS,
+	OFFMESH_VERTS,
+	GROUND_POLY,
+	OFFMESH_POLY,
+	MAXLINK,
+	DETAILMESH,
+	DETAILTRI,
+	BVNODE,
+	COUNT
+};
+
+struct dtDataPointerHelper
+{
+public:
+	unsigned char* pdata;
+	dtMeshHeader* pheader;
+
+	float* pnavVerts;
+	float* pnavVertsGridFloor;
+	float* pnavVertsGeometry;
+	float* pnavVertsReserved;
+
+	float* pnavOffMeshVerts;
+	float* pnavOffMeshVertsGridFloor;
+	float* pnavOffMeshVertsGeometry;
+	float* pnavOffMeshVertsReserved;
+
+	dtPoly* pnavPolys;
+	dtPoly* pnavPolysGridFloor;
+	dtPoly* pnavPolysGeometry;
+	dtPoly* pnavPolysReserved;
+
+	dtPoly* pnavOffMeshPolys;
+	dtPoly* pnavOffMeshPolysGridFloor;
+	dtPoly* pnavOffMeshPolysGeometry;
+	dtPoly* pnavOffMeshPolysReserved;
+
+	dtLink* plink;
+	dtPolyDetail* pnavDMeshes;
+	float* pnavDVerts;
+	unsigned char* pnavDTris;
+	dtBVNode* pnavBvtree;
+
+	dtOffMeshConnection* poffMeshCons;
+	dtOffMeshConnection* poffMeshConsGridFloor;
+	dtOffMeshConnection* poffMeshConsGeometry;
+	dtOffMeshConnection* poffMeshConsReserved;
 };
 
 /// Defines a navigation mesh tile.
@@ -449,11 +531,55 @@ public:
 	dtStatus removeTile(dtTileRef ref, unsigned char** data, int* dataSize);
 
 
-	dtStatus dtNavMesh::ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& gridOffmesh);
+	dtStatus ReAddTitle(dtTileRef ref, dtGrid& gridInfo, dtGridOffmesh& gridOffmesh);
 
-	dtStatus dtNavMesh::AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh);
+	dtStatus AddOffMeshLink(dtTileRef ref, dtGridOffmesh& gridOffmesh);
 
-	dtStatus dtNavMesh::AddStraightLadder(dtTileRef ref, dtStraightLadder& ladder);
+	dtStatus AddStraightLadder(dtTileRef ref, dtStraightLadder& ladder);
+
+	dtStatus CreateGridTile(dtTileRef ref, dtGrid* gridFloorInfo, int floorCount,
+		dtStraightLadder* ladder, int ladderCount,
+		dtGridOffmesh& gridOffmesh);
+
+	dtStatus IsValidTile(dtTileRef ref);
+	void UpdateBounder(dtMeshHeader* header, dtGrid* gridFloorInfo, int floorCount);
+	int GetGridFloorSize(dtMeshHeader* header, dtGrid* gridFloorInfo, int floorCount, 
+		int[dtGridMetaDataSize::COUNT_SIZE], 
+		int[dtGridMetaDataCount::COUNT]);
+	int GetInputNavMeshSize(dtMeshHeader* header, 
+		int [dtGridMetaDataSize::COUNT_SIZE], 
+		int[dtGridMetaDataCount::COUNT]);
+	void CookGeometryOffMeshLinkData(dtMeshHeader* header, dtGridOffmesh& gridOffmesh, int& storedOffMeshConCount, int& offMeshConLinkCount);
+	int GetGeometryOffMeshLinkSize(dtMeshHeader* header, int storedOffMeshConCount, int offMeshConLinkCount, 
+		int [dtGridMetaDataSize::COUNT_SIZE], 
+		int [dtGridMetaDataCount::COUNT]);
+	int GetReservedSize(dtMeshHeader* header, 
+		int [dtGridMetaDataSize::COUNT_SIZE], 
+		int[dtGridMetaDataCount::COUNT]);
+	int GetTotalSize(int output[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
+		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void UpdateHeader(dtMeshHeader* header,
+		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+
+
+	void UpdateDataPointerInfo(dtDataPointerHelper& dataPointerhelper, unsigned char* data, 
+		int [dtGridMetaDataSize::COUNT_SIZE], 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void SetInputNavMeshData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void SetGridFloorData(dtDataPointerHelper& dst, dtDataPointerHelper& src, dtGrid* gridFloorInfo, int floorCount, 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE],
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void SetLadderData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE],
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void SetGeometryOffMeshLinkData(dtDataPointerHelper& dst, dtDataPointerHelper& src, dtGridOffmesh& gridOffmesh, 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void SetReservedData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
+		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
 
 	/// @}
 
