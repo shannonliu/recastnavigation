@@ -306,12 +306,14 @@ public:
 struct dtStraightLadder
 {
 public:
+	int OffMeshCount = 1;
 	int vertsCount = 4;
 	int polyCount = 1;
 	float verts[4 * 3];
 	float baseZ;
 	float baseX;
 	float baseY;
+	float height;
 	dtStraightLadder(float baseX, float baseY, float baseZ, float length, float width, float height):baseX(baseX),baseY(baseY),baseZ(baseZ)
 	{
 		verts[0 * 3 + 0] = baseX - length * 0.5f;
@@ -329,6 +331,8 @@ public:
 		verts[3 * 3 + 0] = baseX + length * 0.5f;
 		verts[3 * 3 + 2] = baseZ - width * 0.5f;
 		verts[3 * 3 + 1] = baseY - height * 0.f;
+
+		this->height = height;
 	}
 };
 
@@ -384,7 +388,8 @@ enum dtGridMetaDataCategory
 	GRIDFLOOR,
 	INPUTNAVMESH,
 	GEOMETRYOFFMESHLINK,
-	RESERVED,
+	LADDER,
+	RESERVEDOFFMESH,
 	TOTAL,
 	CATEGORY_SIZE
 };
@@ -411,21 +416,25 @@ public:
 	float* pnavVerts;
 	float* pnavVertsGridFloor;
 	float* pnavVertsGeometry;
+	float* pnavVertsLadder;
 	float* pnavVertsReserved;
 
 	float* pnavOffMeshVerts;
 	float* pnavOffMeshVertsGridFloor;
 	float* pnavOffMeshVertsGeometry;
+	float* pnavOffMeshVertsLadder;
 	float* pnavOffMeshVertsReserved;
 
 	dtPoly* pnavPolys;
 	dtPoly* pnavPolysGridFloor;
 	dtPoly* pnavPolysGeometry;
+	dtPoly* pnavPolysLadder;
 	dtPoly* pnavPolysReserved;
 
 	dtPoly* pnavOffMeshPolys;
 	dtPoly* pnavOffMeshPolysGridFloor;
 	dtPoly* pnavOffMeshPolysGeometry;
+	dtPoly* pnavOffMeshPolysLadder;
 	dtPoly* pnavOffMeshPolysReserved;
 
 	dtLink* plink;
@@ -437,6 +446,7 @@ public:
 	dtOffMeshConnection* poffMeshCons;
 	dtOffMeshConnection* poffMeshConsGridFloor;
 	dtOffMeshConnection* poffMeshConsGeometry;
+	dtOffMeshConnection* poffMeshConsLadder;
 	dtOffMeshConnection* poffMeshConsReserved;
 };
 
@@ -553,7 +563,12 @@ public:
 	int GetGeometryOffMeshLinkSize(dtMeshHeader* header, int storedOffMeshConCount, int offMeshConLinkCount, 
 		int [dtGridMetaDataSize::COUNT_SIZE], 
 		int [dtGridMetaDataCount::COUNT]);
-	int GetReservedSize(dtMeshHeader* header, 
+
+	int GetLadderSize(dtMeshHeader* header, dtStraightLadder* ladder, int ladderCount,
+		int[dtGridMetaDataSize::COUNT_SIZE],
+		int[dtGridMetaDataCount::COUNT]);
+
+	int GetReservedOffMeshSize(dtMeshHeader* header, 
 		int [dtGridMetaDataSize::COUNT_SIZE], 
 		int[dtGridMetaDataCount::COUNT]);
 	int GetTotalSize(int output[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
@@ -571,13 +586,13 @@ public:
 	void SetGridFloorData(dtDataPointerHelper& dst, dtDataPointerHelper& src, dtGrid* gridFloorInfo, int floorCount, 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE],
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
-	void SetLadderData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
+	void SetLadderData(dtDataPointerHelper& dst, dtDataPointerHelper& src, dtStraightLadder* ladder, int ladderCount,
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE],
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
 	void SetGeometryOffMeshLinkData(dtDataPointerHelper& dst, dtDataPointerHelper& src, dtGridOffmesh& gridOffmesh, 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
-	void SetReservedData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
+	void SetReservedOffMeshData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
 
