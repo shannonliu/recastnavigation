@@ -98,6 +98,7 @@ static const int DT_grid_count_plusone = 8 + 1;
 static const float DT_grid_UnitSize = 0.5f;
 
 static const int DT_RESERVE_OFFMESH = 10;
+static const int DT_RESERVE_LADDER = 5;
 
 /// Tile flags used for various functions and fields.
 /// For an example, see dtNavMesh::addTile().
@@ -385,10 +386,11 @@ enum dtGridMetaDataSize
 };
 enum dtGridMetaDataCategory
 {
-	GRIDFLOOR,
 	INPUTNAVMESH,
+	GRIDFLOOR,
 	GEOMETRYOFFMESHLINK,
 	LADDER,
+	RESERVEDLADDER,
 	RESERVEDOFFMESH,
 	TOTAL,
 	CATEGORY_SIZE
@@ -417,25 +419,29 @@ public:
 	float* pnavVertsGridFloor;
 	float* pnavVertsGeometry;
 	float* pnavVertsLadder;
-	float* pnavVertsReserved;
+	float* pnavVertsReservedLadder;
+	float* pnavVertsReservedOffMesh;
 
 	float* pnavOffMeshVerts;
 	float* pnavOffMeshVertsGridFloor;
 	float* pnavOffMeshVertsGeometry;
 	float* pnavOffMeshVertsLadder;
-	float* pnavOffMeshVertsReserved;
+	float* pnavOffMeshVertsReservedLadder;
+	float* pnavOffMeshVertsReservedOffMesh;
 
 	dtPoly* pnavPolys;
 	dtPoly* pnavPolysGridFloor;
 	dtPoly* pnavPolysGeometry;
 	dtPoly* pnavPolysLadder;
-	dtPoly* pnavPolysReserved;
+	dtPoly* pnavPolysReservedLadder;
+	dtPoly* pnavPolysReservedOffMesh;
 
 	dtPoly* pnavOffMeshPolys;
 	dtPoly* pnavOffMeshPolysGridFloor;
 	dtPoly* pnavOffMeshPolysGeometry;
 	dtPoly* pnavOffMeshPolysLadder;
-	dtPoly* pnavOffMeshPolysReserved;
+	dtPoly* pnavOffMeshPolysReservedLadder;
+	dtPoly* pnavOffMeshPolysReservedOffMesh;
 
 	dtLink* plink;
 	dtPolyDetail* pnavDMeshes;
@@ -447,7 +453,8 @@ public:
 	dtOffMeshConnection* poffMeshConsGridFloor;
 	dtOffMeshConnection* poffMeshConsGeometry;
 	dtOffMeshConnection* poffMeshConsLadder;
-	dtOffMeshConnection* poffMeshConsReserved;
+	dtOffMeshConnection* poffMeshConsReservedLadder;
+	dtOffMeshConnection* poffMeshConsReservedOffMesh;
 };
 
 /// Defines a navigation mesh tile.
@@ -571,15 +578,20 @@ public:
 	int GetReservedOffMeshSize(dtMeshHeader* header, 
 		int [dtGridMetaDataSize::COUNT_SIZE], 
 		int[dtGridMetaDataCount::COUNT]);
+
+	int GetReservedLadderGroundPolySize(dtMeshHeader* header,
+		int[dtGridMetaDataSize::COUNT_SIZE],
+		int[dtGridMetaDataCount::COUNT]);
+
 	int GetTotalSize(int output[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
 		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
 	void UpdateHeader(dtMeshHeader* header,
 		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void UpdateInputNavMeshDataPointerInfo(dtDataPointerHelper& dataPointerhelper, unsigned char* data,
+		int[dtGridMetaDataSize::COUNT_SIZE]);
 
-
-	void UpdateDataPointerInfo(dtDataPointerHelper& dataPointerhelper, unsigned char* data, 
-		int [dtGridMetaDataSize::COUNT_SIZE], 
-		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void UpdateDataPointerInfo(dtDataPointerHelper& dataPointerhelper, unsigned char* data,
+		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE]);
 	void SetInputNavMeshData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
@@ -592,6 +604,9 @@ public:
 	void SetGeometryOffMeshLinkData(dtDataPointerHelper& dst, dtDataPointerHelper& src, dtGridOffmesh& gridOffmesh, 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
+	void SetReservedLadderData(dtDataPointerHelper& dst, dtDataPointerHelper& src,
+		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE],
+		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
 	void SetReservedOffMeshData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
 		int [dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);

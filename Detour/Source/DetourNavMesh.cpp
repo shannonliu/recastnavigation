@@ -2483,6 +2483,9 @@ dtStatus dtNavMesh::CreateGridTile(dtTileRef ref, dtGrid* gridFloorInfo, int flo
 		int _ladderSize = GetLadderSize(_oldTile->header, ladder, ladderCount,
 			_metaDataSize[dtGridMetaDataCategory::LADDER], _metaDataCount[dtGridMetaDataCategory::LADDER]);
 
+		int _reservedLadderSize = GetReservedLadderGroundPolySize(_oldTile->header,
+			_metaDataSize[dtGridMetaDataCategory::RESERVEDLADDER], _metaDataCount[dtGridMetaDataCategory::RESERVEDLADDER]);
+
 		int _reservedSize = GetReservedOffMeshSize(_oldTile->header, 
 			_metaDataSize[dtGridMetaDataCategory::RESERVEDOFFMESH], _metaDataCount[dtGridMetaDataCategory::RESERVEDOFFMESH]);
 
@@ -2497,14 +2500,15 @@ dtStatus dtNavMesh::CreateGridTile(dtTileRef ref, dtGrid* gridFloorInfo, int flo
 		memset(_totaldata, 0, _totaldataSize);
 
 		dtDataPointerHelper _dstTile, _srcTile;
-		UpdateDataPointerInfo(_srcTile, _oldTile->data, _metaDataSize[dtGridMetaDataCategory::INPUTNAVMESH], _metaDataCount);
-		UpdateDataPointerInfo(_dstTile, _totaldata, _metaDataSize[dtGridMetaDataCategory::TOTAL], _metaDataCount);
+		UpdateInputNavMeshDataPointerInfo(_srcTile, _oldTile->data, _metaDataSize[dtGridMetaDataCategory::INPUTNAVMESH]);
+		UpdateDataPointerInfo(_dstTile, _totaldata, _metaDataSize);
 		UpdateHeader(_dstTile.pheader, _metaDataCount);
 
 		SetInputNavMeshData(_dstTile, _srcTile, _metaDataSize, _metaDataCount);
 		SetGridFloorData(_dstTile, _srcTile, gridFloorInfo, floorCount, _metaDataSize, _metaDataCount);
 		SetGeometryOffMeshLinkData(_dstTile, _srcTile, gridOffmesh, _metaDataSize, _metaDataCount);
 		SetLadderData(_dstTile, _srcTile, ladder, ladderCount, _metaDataSize, _metaDataCount);
+		SetReservedLadderData(_dstTile, _srcTile, _metaDataSize, _metaDataCount);
 		SetReservedOffMeshData(_dstTile, _srcTile, _metaDataSize, _metaDataCount);
 
 		removeTile(ref, &_oldTile->data, &_oldTile->dataSize);
@@ -2751,6 +2755,42 @@ int dtNavMesh::GetLadderSize(dtMeshHeader* header, dtStraightLadder* ladder, int
 	return _size;
 }
 
+
+int dtNavMesh::GetReservedLadderGroundPolySize(dtMeshHeader* header,
+	int SizeInfo[dtGridMetaDataSize::COUNT_SIZE],
+	int CountInfo[dtGridMetaDataCount::COUNT])
+{
+	int _size = 0;
+	memset(SizeInfo, 0, sizeof(SizeInfo));
+	memset(CountInfo, 0, sizeof(CountInfo));
+
+	SizeInfo[dtGridMetaDataSize::VERTS_GROUND_SIZE] = dtAlign4(sizeof(float) * 3 * DT_RESERVE_LADDER * 4);
+	SizeInfo[dtGridMetaDataSize::VERTS_OFFMESH_SIZE] = 0;
+	SizeInfo[dtGridMetaDataSize::POLY_GROUND_SIZE] = dtAlign4(sizeof(dtPoly) * DT_RESERVE_LADDER);
+	SizeInfo[dtGridMetaDataSize::POLY_OFFMESH_SIZE] = 0;
+	SizeInfo[dtGridMetaDataSize::LINK_SIZE] = dtAlign4(sizeof(dtLink) * (DT_RESERVE_LADDER * 4));
+	SizeInfo[dtGridMetaDataSize::DETAILMESHES_SIZE] = dtAlign4(sizeof(dtPolyDetail) * DT_RESERVE_LADDER);
+	SizeInfo[dtGridMetaDataSize::DETAILVERTS_SIZE] = dtAlign4(sizeof(float) * 3 * 0);
+	SizeInfo[dtGridMetaDataSize::DETAILTRIS_SIZE] = dtAlign4(sizeof(unsigned char) * 4 * 2 * DT_RESERVE_LADDER);
+	SizeInfo[dtGridMetaDataSize::BVTREE_SIZE] = header->bvNodeCount > 0 ? dtAlign4(sizeof(dtBVNode) * DT_RESERVE_LADDER * 2) : 0;
+	SizeInfo[dtGridMetaDataSize::OFFMESHCON_SIZE] = 0;
+
+	CountInfo[dtGridMetaDataCount::GROUND_VERTS] = DT_RESERVE_LADDER * 4;
+	CountInfo[dtGridMetaDataCount::OFFMESH_VERTS] = 0;
+	CountInfo[dtGridMetaDataCount::GROUND_POLY] = DT_RESERVE_LADDER;
+	CountInfo[dtGridMetaDataCount::OFFMESH_POLY] = 0;
+	CountInfo[dtGridMetaDataCount::MAXLINK] = DT_RESERVE_LADDER * 4;
+	CountInfo[dtGridMetaDataCount::DETAILMESH] = DT_RESERVE_LADDER;
+	CountInfo[dtGridMetaDataCount::DETAILTRI] = DT_RESERVE_LADDER * 2;
+	CountInfo[dtGridMetaDataCount::BVNODE] = header->bvNodeCount > 0 ? DT_RESERVE_LADDER * 2 : 0;
+
+	for (int i = 0; i < dtGridMetaDataSize::COUNT_SIZE; i++)
+	{
+		_size += SizeInfo[i];
+	}
+	return _size;
+}
+
 int dtNavMesh::GetReservedOffMeshSize(dtMeshHeader* header, 
 	int SizeInfo[dtGridMetaDataSize::COUNT_SIZE], 
 	int CountInfo[dtGridMetaDataCount::COUNT])
@@ -2839,48 +2879,70 @@ void dtNavMesh::UpdateHeader(dtMeshHeader* header,
 	header->offMeshBase = CountInfo[dtGridMetaDataCategory::TOTAL][dtGridMetaDataCount::GROUND_POLY];
 	header->offMeshConCount = CountInfo[dtGridMetaDataCategory::TOTAL][dtGridMetaDataCount::OFFMESH_POLY];
 }
-void dtNavMesh::UpdateDataPointerInfo(dtDataPointerHelper& dataPointerhelper, unsigned char* data, 
-	int SizeInfo[dtGridMetaDataSize::COUNT_SIZE], 
-	int CountInfo[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT])
+
+void dtNavMesh::UpdateInputNavMeshDataPointerInfo(dtDataPointerHelper& dataPointerhelper, unsigned char* data,
+	int SizeInfo[dtGridMetaDataSize::COUNT_SIZE])
 {
 	dataPointerhelper.pdata = data;
 	dataPointerhelper.pheader = dtGetThenAdvanceBufferPointer<dtMeshHeader>(data, dtAlign4(sizeof(dtMeshHeader)));
-
-	dataPointerhelper.pnavVerts = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataCount::GROUND_VERTS]));
-	dataPointerhelper.pnavVertsGridFloor = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataCount::GROUND_VERTS]));
-	dataPointerhelper.pnavVertsGeometry = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataCount::GROUND_VERTS]));
-	dataPointerhelper.pnavVertsLadder = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataCount::GROUND_VERTS]));
-	dataPointerhelper.pnavVertsReserved = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataCount::GROUND_VERTS]));
-
-	dataPointerhelper.pnavOffMeshVerts = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataCount::OFFMESH_VERTS]));
-	dataPointerhelper.pnavOffMeshVertsGridFloor = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataCount::OFFMESH_VERTS]));
-	dataPointerhelper.pnavOffMeshVertsGeometry = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataCount::OFFMESH_VERTS]));
-	dataPointerhelper.pnavOffMeshVertsLadder = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataCount::OFFMESH_VERTS]));
-	dataPointerhelper.pnavOffMeshVertsReserved = dtGetThenAdvanceBufferPointer<float>(data, dtAlign4(sizeof(float) * 3 * CountInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataCount::OFFMESH_VERTS]));
-
-	dataPointerhelper.pnavPolys = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataCount::GROUND_POLY]));
-	dataPointerhelper.pnavPolysGridFloor = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataCount::GROUND_POLY]));
-	dataPointerhelper.pnavPolysGeometry = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataCount::GROUND_POLY]));
-	dataPointerhelper.pnavPolysLadder = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataCount::GROUND_POLY]));
-	dataPointerhelper.pnavPolysReserved = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataCount::GROUND_POLY]));
-
-	dataPointerhelper.pnavOffMeshPolys = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataCount::OFFMESH_POLY]));
-	dataPointerhelper.pnavOffMeshPolysGridFloor = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataCount::OFFMESH_POLY]));
-	dataPointerhelper.pnavOffMeshPolysGeometry = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataCount::OFFMESH_POLY]));
-	dataPointerhelper.pnavOffMeshPolysLadder = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataCount::OFFMESH_POLY]));
-	dataPointerhelper.pnavOffMeshPolysReserved = dtGetThenAdvanceBufferPointer<dtPoly>(data, dtAlign4(sizeof(dtPoly) * CountInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataCount::OFFMESH_POLY]));
-
+	dataPointerhelper.pnavVerts = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataSize::VERTS_GROUND_SIZE]);
+	dataPointerhelper.pnavOffMeshVerts = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataSize::VERTS_OFFMESH_SIZE]);
+	dataPointerhelper.pnavPolys = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataSize::POLY_GROUND_SIZE]);
+	dataPointerhelper.pnavOffMeshPolys = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataSize::POLY_OFFMESH_SIZE]);
 	dataPointerhelper.plink = dtGetThenAdvanceBufferPointer<dtLink>(data, SizeInfo[dtGridMetaDataSize::LINK_SIZE]);;
 	dataPointerhelper.pnavDMeshes = dtGetThenAdvanceBufferPointer<dtPolyDetail>(data, SizeInfo[dtGridMetaDataSize::DETAILMESHES_SIZE]);
 	dataPointerhelper.pnavDVerts = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataSize::DETAILVERTS_SIZE]);
 	dataPointerhelper.pnavDTris = dtGetThenAdvanceBufferPointer<unsigned char>(data, SizeInfo[dtGridMetaDataSize::DETAILTRIS_SIZE]);
 	dataPointerhelper.pnavBvtree = dtGetThenAdvanceBufferPointer<dtBVNode>(data, SizeInfo[dtGridMetaDataSize::BVTREE_SIZE]);
+	dataPointerhelper.poffMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, SizeInfo[dtGridMetaDataSize::OFFMESHCON_SIZE]);
+}
 
-	dataPointerhelper.poffMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, dtAlign4(sizeof(dtOffMeshConnection) * CountInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataCount::OFFMESH_POLY]));
-	dataPointerhelper.poffMeshConsGridFloor = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, dtAlign4(sizeof(dtOffMeshConnection) * CountInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataCount::OFFMESH_POLY]));
-	dataPointerhelper.poffMeshConsGeometry = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, dtAlign4(sizeof(dtOffMeshConnection) * CountInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataCount::OFFMESH_POLY]));
-	dataPointerhelper.poffMeshConsLadder = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, dtAlign4(sizeof(dtOffMeshConnection) * CountInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataCount::OFFMESH_POLY]));
-	dataPointerhelper.poffMeshConsReserved = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, dtAlign4(sizeof(dtOffMeshConnection) * CountInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataCount::OFFMESH_POLY]));
+void dtNavMesh::UpdateDataPointerInfo(dtDataPointerHelper& dataPointerhelper, unsigned char* data, 
+	int SizeInfo[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE])
+{
+	dataPointerhelper.pdata = data;
+	dataPointerhelper.pheader = dtGetThenAdvanceBufferPointer<dtMeshHeader>(data, dtAlign4(sizeof(dtMeshHeader)));
+
+	dataPointerhelper.pnavVerts = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataSize::VERTS_GROUND_SIZE]);
+	dataPointerhelper.pnavVertsGridFloor = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataSize::VERTS_GROUND_SIZE]);
+	dataPointerhelper.pnavVertsGeometry = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataSize::VERTS_GROUND_SIZE]);
+	dataPointerhelper.pnavVertsLadder = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataSize::VERTS_GROUND_SIZE]);
+	dataPointerhelper.pnavVertsReservedLadder = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDLADDER][dtGridMetaDataSize::VERTS_GROUND_SIZE]);
+	dataPointerhelper.pnavVertsReservedOffMesh = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataSize::VERTS_GROUND_SIZE]);
+
+	dataPointerhelper.pnavOffMeshVerts = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataSize::VERTS_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshVertsGridFloor = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataSize::VERTS_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshVertsGeometry = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataSize::VERTS_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshVertsLadder = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataSize::VERTS_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshVertsReservedLadder = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDLADDER][dtGridMetaDataSize::VERTS_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshVertsReservedOffMesh = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataSize::VERTS_OFFMESH_SIZE]);
+
+	dataPointerhelper.pnavPolys = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataSize::POLY_GROUND_SIZE]);
+	dataPointerhelper.pnavPolysGridFloor = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataSize::POLY_GROUND_SIZE]);
+	dataPointerhelper.pnavPolysGeometry = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataSize::POLY_GROUND_SIZE]);
+	dataPointerhelper.pnavPolysLadder = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataSize::POLY_GROUND_SIZE]);
+	dataPointerhelper.pnavPolysReservedLadder = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDLADDER][dtGridMetaDataSize::POLY_GROUND_SIZE]);
+	dataPointerhelper.pnavPolysReservedOffMesh = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataSize::POLY_GROUND_SIZE]);
+
+	dataPointerhelper.pnavOffMeshPolys = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataSize::POLY_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshPolysGridFloor = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataSize::POLY_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshPolysGeometry = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataSize::POLY_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshPolysLadder = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataSize::POLY_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshPolysReservedLadder = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDLADDER][dtGridMetaDataSize::POLY_OFFMESH_SIZE]);
+	dataPointerhelper.pnavOffMeshPolysReservedOffMesh = dtGetThenAdvanceBufferPointer<dtPoly>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataSize::POLY_OFFMESH_SIZE]);
+
+	dataPointerhelper.plink = dtGetThenAdvanceBufferPointer<dtLink>(data, SizeInfo[dtGridMetaDataCategory::TOTAL][dtGridMetaDataSize::LINK_SIZE]);;
+	dataPointerhelper.pnavDMeshes = dtGetThenAdvanceBufferPointer<dtPolyDetail>(data, SizeInfo[dtGridMetaDataCategory::TOTAL][dtGridMetaDataSize::DETAILMESHES_SIZE]);
+	dataPointerhelper.pnavDVerts = dtGetThenAdvanceBufferPointer<float>(data, SizeInfo[dtGridMetaDataCategory::TOTAL][dtGridMetaDataSize::DETAILVERTS_SIZE]);
+	dataPointerhelper.pnavDTris = dtGetThenAdvanceBufferPointer<unsigned char>(data, SizeInfo[dtGridMetaDataCategory::TOTAL][dtGridMetaDataSize::DETAILTRIS_SIZE]);
+	dataPointerhelper.pnavBvtree = dtGetThenAdvanceBufferPointer<dtBVNode>(data, SizeInfo[dtGridMetaDataCategory::TOTAL][dtGridMetaDataSize::BVTREE_SIZE]);
+
+	dataPointerhelper.poffMeshCons = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, SizeInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataSize::OFFMESHCON_SIZE]);
+	dataPointerhelper.poffMeshConsGridFloor = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, SizeInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataSize::OFFMESHCON_SIZE]);
+	dataPointerhelper.poffMeshConsGeometry = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, SizeInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataSize::OFFMESHCON_SIZE]);
+	dataPointerhelper.poffMeshConsLadder = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, SizeInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataSize::OFFMESHCON_SIZE]);
+	dataPointerhelper.poffMeshConsReservedLadder = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDLADDER][dtGridMetaDataSize::OFFMESHCON_SIZE]);
+	dataPointerhelper.poffMeshConsReservedOffMesh = dtGetThenAdvanceBufferPointer<dtOffMeshConnection>(data, SizeInfo[dtGridMetaDataCategory::RESERVEDOFFMESH][dtGridMetaDataSize::OFFMESHCON_SIZE]);
 }
 
 void dtNavMesh::SetInputNavMeshData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
@@ -3228,7 +3290,7 @@ void dtNavMesh::SetGeometryOffMeshLinkData(dtDataPointerHelper& dst, dtDataPoint
 	}
 }
 
-void dtNavMesh::SetReservedOffMeshData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
+void dtNavMesh::SetReservedLadderData(dtDataPointerHelper& dst, dtDataPointerHelper& src,
 	int SizeInfo[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE],
 	int CountInfo[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT])
 {
@@ -3248,7 +3310,7 @@ void dtNavMesh::SetReservedOffMeshData(dtDataPointerHelper& dst, dtDataPointerHe
 	// poly reserve Off-mesh link poly.
 	for (int i = 0; i < DT_RESERVE_OFFMESH; ++i)
 	{
-		dtPoly* p = &dst.pnavOffMeshPolysReserved[i];
+		dtPoly* p = &dst.pnavOffMeshPolysReservedOffMesh[i];
 		p->vertCount = 0;
 		p->verts[0] = (unsigned short)(_reservedVertsIndex + i * 2 + 0);
 		p->verts[1] = (unsigned short)(_reservedVertsIndex + i * 2 + 1);
@@ -3259,11 +3321,35 @@ void dtNavMesh::SetReservedOffMeshData(dtDataPointerHelper& dst, dtDataPointerHe
 	// reserve off-mesh connections
 	for (int i = 0; i < DT_RESERVE_OFFMESH; ++i)
 	{
-		dtOffMeshConnection* con = &dst.poffMeshConsReserved[i];
+		dtOffMeshConnection* con = &dst.poffMeshConsReservedOffMesh[i];
 		con->poly = (unsigned short)(_reservedPolyIndex + i);
 		con->pos[0] = con->pos[1] = con->pos[2] = con->pos[3] = con->pos[4] = con->pos[5] = 0.f;
 		con->rad = 0.f;
 		con->flags = DT_OFFMESH_CON_BIDIR;
 		con->side = 0xff;
+	}
+}
+void dtNavMesh::SetReservedOffMeshData(dtDataPointerHelper& dst, dtDataPointerHelper& src, 
+	int SizeInfo[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE],
+	int CountInfo[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT])
+{
+	int _reservedVertsIndex = CountInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataCount::GROUND_VERTS]
+		+ CountInfo[dtGridMetaDataCategory::GRIDFLOOR][dtGridMetaDataCount::GROUND_VERTS]
+		+ CountInfo[dtGridMetaDataCategory::GEOMETRYOFFMESHLINK][dtGridMetaDataCount::GROUND_VERTS]
+		+ CountInfo[dtGridMetaDataCategory::LADDER][dtGridMetaDataCount::GROUND_VERTS];
+
+	// poly 
+	for (int i = 0; i < DT_RESERVE_LADDER; ++i)
+	{
+		dtPoly* p = &dst.pnavPolysReservedLadder[i];
+		p->vertCount = 4;
+		p->verts[0] = (unsigned short)(_reservedVertsIndex + i * 4 + 0);
+		p->verts[1] = (unsigned short)(_reservedVertsIndex + i * 4 + 1);
+		p->verts[2] = (unsigned short)(_reservedVertsIndex + i * 4 + 3);
+		p->verts[3] = (unsigned short)(_reservedVertsIndex + i * 4 + 2);
+		p->flags = 1;
+		p->setArea(0);
+		p->setType(DT_POLYTYPE_GROUND);
+		p->firstLink = DT_NULL_LINK;
 	}
 }
