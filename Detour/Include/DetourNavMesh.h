@@ -94,7 +94,7 @@ static const unsigned int DT_OFFMESH_CON_BIDIR = 1;
 /// @ingroup detour
 static const int DT_MAX_AREAS = 64;
 
-static const int DT_grid_count_plusone = 8 + 1;
+static const int DT_grid_count_plusone = 42 + 1;
 static const float DT_grid_UnitSize = 0.5f;
 
 static const int DT_RESERVE_OFFMESH = 10;
@@ -561,7 +561,7 @@ public:
 	dtStatus IsValidTile(dtTileRef ref);
 	void UpdateBounder(dtMeshHeader* header, dtGrid* gridFloorInfo, int floorCount);
 	int GetGridFloorSize(dtMeshHeader* header, dtGrid* gridFloorInfo, int floorCount, 
-		int[dtGridMetaDataSize::COUNT_SIZE], 
+		int[dtGridMetaDataSize::COUNT_SIZE],
 		int[dtGridMetaDataCount::COUNT]);
 	int GetInputNavMeshSize(dtMeshHeader* header, 
 		int [dtGridMetaDataSize::COUNT_SIZE], 
@@ -585,7 +585,7 @@ public:
 
 	int GetTotalSize(int output[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataSize::COUNT_SIZE], 
 		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
-	void UpdateHeader(dtMeshHeader* header,
+	void UpdateHeader(dtMeshHeader& header,
 		int[dtGridMetaDataCategory::CATEGORY_SIZE][dtGridMetaDataCount::COUNT]);
 	void UpdateInputNavMeshDataPointerInfo(dtDataPointerHelper& dataPointerhelper, unsigned char* data,
 		int[dtGridMetaDataSize::COUNT_SIZE]);

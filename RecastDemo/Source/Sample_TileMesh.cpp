@@ -858,7 +858,7 @@ void Sample_TileMesh::CreateTile(const float* pos)
 	_gridOffmesh.offMeshConUserID = m_geom->getOffMeshConnectionId();
 	_gridOffmesh.offMeshConCount = m_geom->getOffMeshConnectionCount();
 
-	m_navMesh->ReAddTitle(m_navMesh->getTileRefAt(tx, ty, 0), _grid, _gridOffmesh);
+	//m_navMesh->ReAddTitle(m_navMesh->getTileRefAt(tx, ty, 0), _grid, _gridOffmesh);
 
 	m_spos[0] = _grid.verts[0 + 3 * DT_grid_count_plusone + 3];
 	m_spos[1] = _grid.verts[1 + 3 * DT_grid_count_plusone + 3];
@@ -867,6 +867,8 @@ void Sample_TileMesh::CreateTile(const float* pos)
 	m_epos[0] = _grid.verts[0 + _grid.vertsCount * 3 - 3 * DT_grid_count_plusone - 6];
 	m_epos[1] = _grid.verts[1 + _grid.vertsCount * 3 - 3 * DT_grid_count_plusone - 6];
 	m_epos[2] = _grid.verts[2 + _grid.vertsCount * 3 - 3 * DT_grid_count_plusone - 6];
+
+	m_navMesh->CreateGridTile(m_navMesh->getTileRefAt(tx, ty, 0), &_grid, 1, nullptr, 0, _gridOffmesh);
 }
 
 void Sample_TileMesh::buildAllTiles()
