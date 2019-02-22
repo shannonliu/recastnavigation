@@ -97,8 +97,8 @@ static const int DT_MAX_AREAS = 64;
 static const int DT_grid_count_plusone = 42 + 1;
 static const float DT_grid_UnitSize = 0.5f;
 
-static const int DT_RESERVE_OFFMESH = 10;
-static const int DT_RESERVE_LADDER = 5;
+static const int DT_RESERVE_OFFMESH = 16;
+static const int DT_RESERVE_LADDER = 8;//dAline4
 
 /// Tile flags used for various functions and fields.
 /// For an example, see dtNavMesh::addTile().
