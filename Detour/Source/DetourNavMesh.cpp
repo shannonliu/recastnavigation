@@ -2999,8 +2999,12 @@ void dtNavMesh::SetGridFloorData(dtDataPointerHelper& dst, dtDataPointerHelper& 
 
 	// poly new ground poly
 	n = 0;
+	int _beginPolyVertsXIndex = CountInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataCount::GROUND_VERTS];
+	
 	for (int i = 0; i < floorCount; i++)
 	{
+		int _currentPolyVertsXIndex = _beginPolyVertsXIndex;
+
 		for (int j = 0; j < gridFloorInfo[i].polyCount; j++)
 		{
 			dtPoly* p = &dst.pnavPolysGridFloor[n];
@@ -3009,15 +3013,19 @@ void dtNavMesh::SetGridFloorData(dtDataPointerHelper& dst, dtDataPointerHelper& 
 			p->setArea(0);
 			p->setType(DT_POLYTYPE_GROUND);
 
-			int _gridZindex = n / (DT_grid_count_plusone - 1);
-			int _currentPolyVertsXIndex = CountInfo[dtGridMetaDataCategory::INPUTNAVMESH][dtGridMetaDataCount::GROUND_VERTS] + _gridZindex * DT_grid_count_plusone + n % (DT_grid_count_plusone - 1);
-
 			p->verts[0] = _currentPolyVertsXIndex + 0;
 			p->verts[1] = _currentPolyVertsXIndex + 1;
 			p->verts[2] = _currentPolyVertsXIndex + 1 + DT_grid_count_plusone;
 			p->verts[3] = _currentPolyVertsXIndex + 0 + DT_grid_count_plusone;
 			n++;
+			_currentPolyVertsXIndex++;
+
+			if (0 == n % (DT_grid_count_plusone - 1))
+			{
+				_currentPolyVertsXIndex++;
+			}
 		}
+		_beginPolyVertsXIndex += gridFloorInfo[i].vertsCount;
 	}
 
 	for (int i = 0; i < n; ++i)
@@ -3026,26 +3034,53 @@ void dtNavMesh::SetGridFloorData(dtDataPointerHelper& dst, dtDataPointerHelper& 
 
 		for (int j = 0; j < 4; ++j)
 		{
-			p->neis[j] = DT_EXT_LINK | 0 | 2 | 4 | 6;
-
-			if (0 == i % (DT_grid_count_plusone - 1) && 3 == j)
+			if (3 == j)
 			{
-				p->neis[j] = 0;
+				if (0 == i % (DT_grid_count_plusone - 1))
+				{
+					p->neis[j] = 0;
+				}
+				else
+				{
+					p->neis[j] = _srcGroundPolyCount + i - 1 + 1;
+				}
 			}
 
-			if (DT_grid_count_plusone - 2 == i % (DT_grid_count_plusone - 1) && 1 == j)
+
+			if (1 == j)
 			{
-				p->neis[j] = 0;
+				if (DT_grid_count_plusone - 2 == i % (DT_grid_count_plusone - 1))
+				{
+					p->neis[j] = 0;
+				}
+				else
+				{
+					p->neis[j] = _srcGroundPolyCount + i + 1 + 1;
+				}
 			}
 
-			if (i < DT_grid_count_plusone - 1 && 0 == j)
+			if (0 == j)
 			{
-				p->neis[j] = 0;
+				if (i < DT_grid_count_plusone - 1)
+				{
+					p->neis[j] = 0;
+				}
+				else
+				{
+					p->neis[j] = _srcGroundPolyCount + i - (DT_grid_count_plusone - 1) + 1;
+				}
 			}
 
-			if (i >= (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 2) && 2 == j)
+			if (2 == j)
 			{
-				p->neis[j] = 0;
+				if (i >= (DT_grid_count_plusone - 1) * (DT_grid_count_plusone - 2))
+				{
+					p->neis[j] = 0;
+				}
+				else
+				{
+					p->neis[j] = _srcGroundPolyCount + i + (DT_grid_count_plusone - 1) + 1;
+				}
 			}
 		}
 	}
